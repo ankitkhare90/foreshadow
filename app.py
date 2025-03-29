@@ -1,5 +1,4 @@
 import os
-
 import pandas as pd
 import streamlit as st
 
@@ -88,34 +87,60 @@ if existing_events:
 search_button = st.button("Search for Traffic Events", type="primary")
 
 if search_button and city:
-    with st.spinner(f"Searching for news in {city}..."):
+    # Create a status container to track progress
+    with st.status(f"Searching for traffic events in {city}...", expanded=True) as status:
         # Fetch news with city in the query
+        st.write("Fetching news articles...")
         query = f"{city}"
         
-        # Try to fetch real news, fallback to mock data if API key not available
+        # Try to fetch real news
         try:
             articles = fetch_news(query=query, days=days)
             if not articles:
+                status.update(label="No articles found or API key issue", state="error")
                 st.warning("No articles found or API key issue.")
             else:
-                st.success(f"Found {len(articles)} news articles about {city}")
+                st.write(f"Found {len(articles)} news articles about {city}")
+                
+                # Process with AI - Sequential approach to avoid multiprocessing issues
+                st.write("Analyzing articles for traffic relevance...")
+                events = []
+                for i, article in enumerate(articles):
+                    progress = ((i + 1) / len(articles)) * 100
+                    
+                    # Update status message
+                    if progress % 25 == 0:
+                        st.write(f"{progress}% articles processed")
+                    
+                    # Process article
+                    event = extract_event_from_article(article, city)
+                    if event:
+                        events.append(event)
+                
+                if events:
+                    st.write(f"Detected {len(events)} traffic-affecting events")
+                    
+                    st.write("Saving event data...")
+                    file_path = save_city_events(events, country_code, city)
+                    
+                    status.update(
+                        label=f"Found {len(events)} traffic events in {city}",
+                        state="complete"
+                    )
+                else:
+                    status.update(
+                        label=f"No traffic events found in {city}",
+                        state="complete"
+                    )
         except Exception as e:
+            status.update(label=f"Error fetching news: {e}", state="error")
             st.error(f"Error fetching news: {e}")
     
-    # Process with AI
-    with st.spinner("Analyzing articles for traffic relevance..."):
-        events = []
-        for article in articles:
-            event = extract_event_from_article(articles, city)
-            events.append(event)
-    
     # Display results
-    if events:
+    if 'events' in locals() and events:
         st.success(f"Detected {len(events)} traffic-affecting events in {city}")
         
-        # Save the events to city-specific file
-        file_path = save_city_events(events, country_code, city)
-        if file_path:
+        if 'file_path' in locals() and file_path:
             st.info(f"Saved event data to {os.path.basename(file_path)}")
         
         # Convert to DataFrame for easier display
@@ -149,7 +174,7 @@ if search_button and city:
                 **City**: {event.get('city_name', 'Unknown')}
                 """)
                 st.divider()
-    else:
+    elif 'events' in locals():
         st.info(f"No traffic-affecting events detected in {city}")
 else:
     if not city and search_button:

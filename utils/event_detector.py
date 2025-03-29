@@ -67,15 +67,13 @@ def extract_event(article: Dict[str, Any], city: str) -> List[Dict[str, Any]]:
     5. Expected attendance or scale (if mentioned)
     
     Return JSON format only, with no explanation:
-    [
-      {{
+    {{
         "event_type": "...",
         "location": "...",
         "date": "...",
         "time": "...",
         "scale": "..."
-      }}
-    ]
+    }}
     
     If no traffic-related events are found, return an empty array.
     
