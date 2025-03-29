@@ -5,50 +5,60 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def get_openai_client():
     """Get OpenAI client with API key from environment variables"""
     api_key = os.getenv("OPENAI_API_KEY")
     return openai.OpenAI(api_key=api_key)
 
+
 def is_traffic_relevant(title, description, city, client=None):
     """
-    Check if the article with given title and description 
+    Check if the article with given title and description
     contains news that could affect road traffic in the specified city.
     """
     if client is None:
         client = get_openai_client()
-    
+
     prompt = f"""
-    Does this news article contain information about events that could affect road traffic in {city}?
+    You are a news classifier with expertise in transportation impacts. An article is considered to have 'traffic-affecting news' if it reports events such as road accidents, major construction, severe weather conditions, public demonstrations, sports events, concerts, festivals, or similar incidents that could disrupt nearby road traffic. Otherwise, it is classified as 'non-traffic-affecting.
+
+    Given the following article information. Can it effect traffic in {city}:
     
     Title: {title}
     Description: {description}
     
-    Answer only with 'Yes' or 'No'.
+    Classify this article as either "Yes" (if it can affect traffic) or "No" (if it cannot affect traffic) and output your answer in JSON format as follows:
+
+    {{ "affect_traffic": "Yes" }}
     """
-    
+
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=10,
+            response_format={"type": "json_object"},
+            temperature=0.01,
+            max_tokens=2048,
         )
-        
-        answer = response.choices[0].message.content.strip().lower()
-        return answer == 'yes' or answer == 'yes.'
-        
+
+        result = json.loads(response.choices[0].message.content)
+        print(result)
+        answer = result.get("affect_traffic", "No").lower()
+        return answer == "yes"
+
     except Exception as e:
         print(f"Error checking traffic relevance: {e}")
         return False
+
 
 def extract_events_with_llm(text, city=None, client=None):
     """Extract structured event data from text using LLM"""
     if client is None:
         client = get_openai_client()
-    
+
     city_context = f"Focus on events in or near {city}. " if city else ""
-    
+
     prompt = f"""
     Extract traffic-related events from this text. {city_context}For each event, provide:
     1. Event type (concert, sport event, road closure, construction, festival, etc.)
@@ -90,6 +100,7 @@ def extract_events_with_llm(text, city=None, client=None):
         print(f"Error calling OpenAI API: {e}")
         return []
 
+
 def detect_events_by_city(articles, city):
     """
     Filter articles by city and detect traffic-relevant events in two phases:
@@ -98,43 +109,44 @@ def detect_events_by_city(articles, city):
     """
     # Get OpenAI client once and reuse
     client = get_openai_client()
-    
+
     # Filter relevant articles first
     relevant_articles = []
-    
+
     for article in articles:
-        title = article.get('title', '')
-        description = article.get('description', '')
-        
+        title = article.get("title", "")
+        description = article.get("description", "")
+
         # Skip articles without title or description
         if not title or not description:
             continue
-            
+
         # Check if article is traffic-relevant
         if is_traffic_relevant(title, description, city, client):
             relevant_articles.append(article)
-    
+
     # Process relevant articles for structured event data
     events = []
     for article in relevant_articles:
-        title = article.get('title', '')
-        content = article.get('content', '')
-        
+        title = article.get("title", "")
+        content = article.get("content", "")
+
         # If content is missing, fall back to description
         if not content:
-            content = article.get('description', '')
-            
+            content = article.get("description", "")
+
         # Extract structured events from the article
         article_text = f"{title}. {content}"
         events_from_article = extract_events_with_llm(article_text, city, client)
-        
+
         # Add source information to each event
         for event in events_from_article:
             event["source"] = article
-            
+
         events.extend(events_from_article)
-        
+
     return events
+
 
 def detect_events(articles):
     """Legacy function maintained for backward compatibility"""
