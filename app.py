@@ -59,7 +59,7 @@ if existing_events:
                 "Date": event.get('date', 'Unknown'),
                 "Time": event.get('time', 'Unknown'),
                 "Scale": event.get('scale', 'Unknown'),
-                "Source": event.get('source', {}).get('source', {}).get('name', 'Unknown')
+                "City": event.get('city_name', 'Unknown'),
             }
             events_list.append(event_dict)
         
@@ -79,7 +79,7 @@ if existing_events:
                     **Date**: {event.get('date', 'Unknown')}  
                     **Time**: {event.get('time', 'Unknown')}  
                     **Scale**: {event.get('scale', 'Unknown') or 'Not specified'}  
-                    **Source**: {event.get('source', {}).get('source', {}).get('name', 'Unknown')}
+                    **City**: {event.get('city_name', 'Unknown')}
                     """)
                     st.divider()
         else:
@@ -145,8 +145,8 @@ if search_button and city:
                 **Location**: {event.get('location', 'Unknown')}  
                 **Date**: {event.get('date', 'Unknown')}  
                 **Time**: {event.get('time', 'Unknown')}  
-                **Scale**: {event.get('scale', 'Unknown') or 'Not specified'}  
-                **Source**: {event.get('source', {}).get('source', {}).get('name', 'Unknown')}
+                **Scale**: {event.get('scale', 'Unknown') or 'Not specified'}
+                **City**: {event.get('city_name', 'Unknown')}
                 """)
                 st.divider()
     else:
