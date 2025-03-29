@@ -1,9 +1,6 @@
 streamlit
-folium
-streamlit-folium
 pandas
 openai
-geopy
-python-dotenv
 requests
-newsapi-python 
+python-dotenv
+geopy 

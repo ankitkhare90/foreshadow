@@ -1,78 +1,100 @@
-# Traffic Prediction Tool
+# Foreshadow: Traffic Event Detector
 
-A predictive system that correlates news events with traffic patterns to forecast congestion in specific areas.
+Foreshadow is a city-based traffic event detection system that leverages news articles and AI to identify traffic-affecting events. This project follows a functional programming approach with modular components.
 
 ## Features
 
-- Fetches news data related to traffic events using NewsAPI
-- Uses OpenAI's GPT-4 to detect traffic-impacting events from news articles
-- Geotags events to specific locations
-- Visualizes events on an interactive map
-- Predicts traffic impact using event influence zones
+- **City-based filtering**: Search for traffic events in specific cities
+- **Two-phase AI analysis**:
+  1. First filters news articles for traffic relevance
+  2. Then extracts structured event data from relevant articles
+- **Structured event data**:
+  - Event type (concert, sports, construction, etc.)
+  - Location (specific as possible)
+  - Date and time
+  - Scale/attendance (when available)
+- **Geographic tagging**: Adds coordinates and influence radius to events
+- **Data persistence**: Save and retrieve events
+- **Streamlit user interface**: Easy interactive exploration
 
-## Project Setup
+## Installation
 
-### Requirements
-
-- Python 3.8+
-- NewsAPI API key
-- OpenAI API key
-
-### Installation
-
-1. Clone the repository
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+1. Clone this repository
+2. Install dependencies:
    ```
-3. Install dependencies:
-   ```bash
    uv pip install -r requirements.txt
    ```
-4. Create a `.env` file in the project root with your API keys:
+3. Set up environment variables in a `.env` file:
    ```
-   NEWSAPI_API_KEY=your-newsapi-key
-   OPENAI_API_KEY=your-openai-key
+   OPENAI_API_KEY=your_openai_api_key
+   NEWSAPI_API_KEY=your_newsapi_key
    ```
 
-### Running the Application
+## Usage
 
-Start the Streamlit application:
+### Run the Streamlit app:
+
 ```bash
 streamlit run app.py
 ```
 
-The application will be available at `http://localhost:8501`.
+### Run the command-line demo:
 
-### Testing
-
-Run the test pipeline to verify that the components are working correctly:
+Basic version (without geolocation):
 ```bash
-python tests/test_pipeline.py
+python example_usage.py
 ```
 
-## Project Structure
+Full pipeline version (with geolocation and storage):
+```bash
+python full_pipeline_example.py
+```
 
-- `app.py`: Main Streamlit application
-- `utils/`: Core functionality modules
-  - `news_fetcher.py`: Fetches news from NewsAPI
-  - `event_detector.py`: Uses OpenAI to detect events from news
-  - `geo_tagger.py`: Tags events with geographic coordinates
-  - `data_storage.py`: Stores and retrieves event data
-- `tests/`: Test scripts
-- `data/`: Directory for storing data files
+## Components
 
-## Phase 1 Implementation
+The project uses a functional approach with these modules:
 
-Phase 1 focuses on setting up the data pipeline:
-1. News data collection from APIs
-2. Event detection using OpenAI LLM
-3. Geographic tagging of events
-4. Basic data storage system
+- **event_detector.py**: Functions for detecting traffic-affecting events
+  - `detect_events_by_city`: Main function to process articles by city
+  - `is_traffic_relevant`: Checks if articles are traffic-relevant
+  - `extract_events_with_llm`: Extracts structured event data
+  
+- **news_fetcher.py**: Functions for retrieving news
+  - `fetch_news`: Gets news from an external API
+  - `generate_mock_data`: Creates test data when API unavailable
 
-## Next Steps
+- **geo_tagger.py**: Functions for adding geographic coordinates
+  - `geo_tag_events`: Main function to add location coordinates
+  - `disambiguate_location`: Enhances location references
+  - `calculate_influence_radius`: Determines traffic impact radius
 
-- Phase 2: Traffic prediction engine
-- Phase 3: Enhanced user interface and visualizations
-- Phase 4: Testing, optimization, and deployment 
+- **data_storage.py**: Functions for data persistence
+  - `save_events`: Stores events with timestamps
+  - `get_events`: Retrieves events with optional date filtering
+
+## How It Works
+
+1. **News Fetching**: Gets news related to the specified city
+2. **Traffic Relevance Check**: Uses AI to filter for traffic-related articles
+3. **Event Extraction**: Analyzes relevant articles to extract structured event data
+4. **Geographic Tagging**: Enhances events with coordinates and influence radius
+5. **Storage**: Persists events for future retrieval
+6. **Display**: Shows events in an easily digestible format
+
+## API Keys
+
+- OpenAI API key: Required for AI analysis
+- NewsAPI key: Required for fetching real news articles
+
+If keys are missing, the system falls back to mock data generation for demonstration purposes.
+
+## Requirements
+
+```
+streamlit
+pandas
+openai
+requests
+python-dotenv
+geopy
+``` 
