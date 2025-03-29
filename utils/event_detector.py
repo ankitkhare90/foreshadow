@@ -1,24 +1,24 @@
-import openai
-import os
+
 import json
+import os
+
 from dotenv import load_dotenv
+from newspaper import Article
+from typing import Dict, Any, List
 
 load_dotenv()
 
+from openai import OpenAI
 
-def get_openai_client():
-    """Get OpenAI client with API key from environment variables"""
-    api_key = os.getenv("OPENAI_API_KEY")
-    return openai.OpenAI(api_key=api_key)
+api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key)
 
 
-def is_traffic_relevant(title, description, city, client=None):
+def is_traffic_relevant(title: str, description: str, city: str) -> bool:
     """
     Check if the article with given title and description
     contains news that could affect road traffic in the specified city.
     """
-    if client is None:
-        client = get_openai_client()
 
     prompt = f"""
     You are a news classifier with expertise in transportation impacts. An article is considered to have 'traffic-affecting news' if it reports events such as road accidents, major construction, severe weather conditions, public demonstrations, sports events, concerts, festivals, or similar incidents that could disrupt nearby road traffic. Otherwise, it is classified as 'non-traffic-affecting.
@@ -52,19 +52,20 @@ def is_traffic_relevant(title, description, city, client=None):
         return False
 
 
-def extract_events_with_llm(text, city=None, client=None):
+def extract_event(article: Dict[str, Any], city: str) -> List[Dict[str, Any]]:
     """Extract structured event data from text using LLM"""
-    if client is None:
-        client = get_openai_client()
 
-    city_context = f"Focus on events in or near {city}. " if city else ""
+    city_context = f"Focus on events in or near {city}."
+    text = f"Title: {article['title']}.
+    Full content: {article['full_content']}"
 
     prompt = f"""
-    Extract traffic-related events from this text. {city_context}For each event, provide:
+    Extract events that can affect road traffic from this text. {city_context}
+    For each event, provide:
     1. Event type (concert, sport event, road closure, construction, festival, etc.)
-    2. Location (as specific as possible such as street name, pincode, landmark, etc.)
-    3. Date (as specific as possible such as 01-01-2025 etc.)
-    4. Time (as specific as possible such as 10:00 AM, 10:00 PM, etc.)
+    2. Location (as specific as possible such as street name, pincode, landmark, etc. where this even is happening)
+    3. Date (date at which this event is happening as specific as possible such as 01-01-2025 etc.)
+    4. Time (Time at which this event is happening as specific as possible such as 10:00 AM, 10:00 PM etc.)
     5. Expected attendance or scale (if mentioned)
     
     Return JSON format only, with no explanation:
@@ -101,61 +102,65 @@ def extract_events_with_llm(text, city=None, client=None):
         return []
 
 
-def detect_events_by_city(articles, city):
+def fetch_full_content(url):
     """
-    Filter articles by city and detect traffic-relevant events in two phases:
-    1. First check if each article is traffic-relevant
-    2. Then extract structured events from relevant articles
+    Fetch the full content of an article from its URL using newspaper3k
     """
-    # Get OpenAI client once and reuse
-    client = get_openai_client()
-
-    # Filter relevant articles first
-    relevant_articles = []
-
-    for article in articles:
-        title = article.get("title", "")
-        description = article.get("description", "")
-
-        # Skip articles without title or description
-        if not title or not description:
-            continue
-
-        # Check if article is traffic-relevant
-        if is_traffic_relevant(title, description, city, client):
-            relevant_articles.append(article)
-
-    # Process relevant articles for structured event data
-    events = []
-    for article in relevant_articles:
-        title = article.get("title", "")
-        content = article.get("content", "")
-
-        # If content is missing, fall back to description
-        if not content:
-            content = article.get("description", "")
-
-        # Extract structured events from the article
-        article_text = f"{title}. {content}"
-        events_from_article = extract_events_with_llm(article_text, city, client)
-
-        # Add source information to each event
-        for event in events_from_article:
-            event["source"] = article
-
-        events.extend(events_from_article)
-
-    return events
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        return article.text
+    except Exception as e:
+        print(f"Error fetching content from URL {url}: {e}")
+        return ""
 
 
-def detect_events(articles):
-    """Legacy function maintained for backward compatibility"""
-    client = get_openai_client()
-    events = []
-    for article in articles:
-        content = f"{article['title']}. {article['description']}"
-        events_from_article = extract_events_with_llm(content, client=client)
-        for event in events_from_article:
-            event["source"] = article
-        events.extend(events_from_article)
-    return events
+def extract_event_from_article(article: Dict[str, Any], city: str) -> Dict[str, Any]:
+    """
+    Process an article to extract traffic-related events for a specific city.
+    
+    Process flow:
+    1. Validates input article has required title and description
+    2. Checks if article is traffic-relevant using LLM classification
+    3. Fetches full content of relevant articles via newspaper3k
+    4. Extracts structured event data using LLM from full content
+    5. Attaches source article data to extracted events
+    
+    Args:
+        article: Dictionary containing article data with title, description, and url
+        city: Name of the city
+        
+    Returns:
+        Dictionary containing structured event data with source article attached,
+        or empty dictionary if article is not relevant or processing fails
+    """
+    
+    title = article.get("title", "")
+    description = article.get("description", "")
+
+    # Skip articles without title or description
+    if not title or not description:
+        return {}
+
+    # Check if article is traffic-relevant
+    if not is_traffic_relevant(title, description, city):
+        return {}
+
+    # Fetch full content of the selected articles
+    url = article.get("url", "")
+    full_content = fetch_full_content(url)
+    if not full_content:
+        return {}
+    
+    article["full_content"] = full_content
+
+    # Extract structured events from the article
+    event = extract_event(article, city)
+    if not event:
+        return {}
+    
+    event["source"] = article
+    event["city"] = city
+
+    return event

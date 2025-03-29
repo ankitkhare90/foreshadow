@@ -1,7 +1,7 @@
 import os
 import json
 from utils.news_fetcher import fetch_news, generate_mock_data_for_city
-from utils.event_detector import detect_events_by_city
+from utils.event_detector import extract_event_from_article
 from utils.geo_tagger import geo_tag_events
 from utils.data_storage import save_events, get_events
 from datetime import datetime, timedelta
@@ -35,7 +35,7 @@ def run_full_pipeline(city, days=7, save_to_storage=True):
     
     # Step 2: Detect traffic-relevant events
     print("\nStep 2: Analyzing articles for traffic relevance...")
-    events = detect_events_by_city(articles, city)
+    events = extract_event_from_article(articles, city)
     
     if not events:
         print("No traffic-relevant events detected")

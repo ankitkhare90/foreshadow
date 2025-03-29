@@ -1,7 +1,7 @@
 import os
 import json
 from utils.news_fetcher import fetch_news, generate_mock_data_for_city
-from utils.event_detector import detect_events_by_city
+from utils.event_detector import extract_event_from_article
 
 def main():
     # Get city from user
@@ -26,7 +26,7 @@ def main():
     print(f"Found {len(articles)} news articles for {city}")
     
     # Detect traffic-relevant events
-    events = detect_events_by_city(articles, city)
+    events = extract_event_from_article(articles, city)
     
     # Display results
     if events:

@@ -1,11 +1,12 @@
-import streamlit as st
-import json
-from utils.news_fetcher import fetch_news, generate_mock_data_for_city
-from utils.event_detector import detect_events_by_city
-from utils.location_utils import get_country_options, get_cities_for_country
-from utils.data_storage import save_city_events, get_city_events
-import pandas as pd
 import os
+
+import pandas as pd
+import streamlit as st
+
+from utils.data_storage import get_city_events, save_city_events
+from utils.event_detector import extract_event_from_article
+from utils.location_utils import get_cities_for_country, get_country_options
+from utils.news_fetcher import fetch_news
 
 st.set_page_config(
     page_title="Foreshadow - Traffic Event Detector",
@@ -118,7 +119,10 @@ if search_button and city:
     
     # Process with AI
     with st.spinner("Analyzing articles for traffic relevance..."):
-        events = detect_events_by_city(articles, city)
+        events = []
+        for article in articles:
+            event = extract_event_from_article(articles, city)
+            events.append(event)
     
     # Display results
     if events:
@@ -138,7 +142,7 @@ if search_button and city:
                 "Date": event.get('date', 'Unknown'),
                 "Time": event.get('time', 'Unknown'),
                 "Scale": event.get('scale', 'Unknown'),
-                "Source": event.get('source', {}).get('source', {}).get('name', 'Unknown')
+                "City": event.get('city', 'Unknown'),
             }
             events_list.append(event_dict)
         
