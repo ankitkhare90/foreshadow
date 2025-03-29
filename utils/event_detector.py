@@ -159,6 +159,6 @@ def extract_event_from_article(article: Dict[str, Any], city: str) -> Dict[str, 
         return {}
     
     event["source"] = article
-    event["city"] = city
+    event["city_name"] = city
 
     return event

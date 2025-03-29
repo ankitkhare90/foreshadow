@@ -1,25 +1,27 @@
-import pandas as pd
 import json
 import os
-import openai
 from datetime import datetime
+from typing import Any, Dict, List
+
+import openai
+import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
 
+from openai import OpenAI
+
+api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key)
+
 # Define default data directory and events file path
 DEFAULT_DATA_DIR = "data"
-_events_file = os.path.join(DEFAULT_DATA_DIR, "events.json")
 EXTRACTED_CITY_DATA_DIR = os.path.join(DEFAULT_DATA_DIR, "extracted_city_data")
 
 # Ensure data directories exist
 os.makedirs(DEFAULT_DATA_DIR, exist_ok=True)
 os.makedirs(EXTRACTED_CITY_DATA_DIR, exist_ok=True)
 
-def get_openai_client():
-    """Get OpenAI client with API key from environment variables"""
-    api_key = os.getenv("OPENAI_API_KEY")
-    return openai.OpenAI(api_key=api_key)
 
 def load_events(events_file=None):
     """Load events from the JSON file or return empty DataFrame if file doesn't exist"""
@@ -60,13 +62,11 @@ def save_events(events, events_file=None):
     
     return combined_df
 
-def get_events(start_date=None, end_date=None, events_file=None):
+def get_events(start_date=None, end_date=None):
     """
     Get events from storage, optionally filtered by date range
     Returns events as a list of dictionaries
     """
-    if events_file is None:
-        events_file = _events_file
     
     # Load events
     events_df = load_events(events_file)
@@ -90,10 +90,6 @@ def standardize_dates(df):
     """Standardize date references in events to enable date filtering"""
     # Extract all unique date references
     date_refs = df["date"].dropna().unique().tolist()
-    
-    # Get OpenAI client
-    client = get_openai_client()
-    
     # Use LLM to convert to standard format
     date_mapping = {}
     for date_ref in date_refs:
@@ -105,10 +101,8 @@ def standardize_dates(df):
     df_copy["parsed_date"] = df_copy["date"].map(date_mapping)
     return df_copy
 
-def parse_date_with_llm(date_text, client=None):
+def parse_date_with_llm(date_text: str) -> datetime.date:
     """Parse a date reference using LLM to convert to a standard datetime object"""
-    if client is None:
-        client = get_openai_client()
         
     if not date_text:
         return datetime.now().date()
@@ -133,7 +127,8 @@ def parse_date_with_llm(date_text, client=None):
         print(f"Error parsing date: {e}")
         return datetime.now().date()  # Fallback to today 
 
-def save_city_events(events, country_code, city_name):
+def save_city_events(events: List[Dict[str, Any]], 
+                     country_code: str, city_name: str) -> str:
     """
     Save extracted events for a specific city to a JSON file in the extracted_city_data directory.
     The file is named using the country_code and city_name: country-code_city_name.json
@@ -155,22 +150,42 @@ def save_city_events(events, country_code, city_name):
     filename = f"{country_code.lower()}_{clean_city_name}.json"
     file_path = os.path.join(EXTRACTED_CITY_DATA_DIR, filename)
     
-    # Add timestamps to events
+    # Load existing events if the file exists
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                existing_events = json.load(f)
+        except Exception as e:
+            print(f"Error reading existing city data: {e}")
+            existing_events = []
+    else:
+        existing_events = []
+    
+    # Create a set of existing event IDs
+    existing_event_ids = {event['id'] for event in existing_events}
+    
+    # Add timestamps and IDs to new events, only if the ID is not already present
     events_with_timestamp = []
     for event in events:
         event_copy = event.copy()
         event_copy["created_at"] = datetime.now().isoformat()
-        event_copy["city"] = city_name
         event_copy["country_code"] = country_code
-        events_with_timestamp.append(event_copy)
+        event_copy["id"] = f"{event['event_type']}_{event['location']}_{event['date']}"
+        
+        # Append only if the ID is not in existing_event_ids
+        if event_copy["id"] not in existing_event_ids:
+            events_with_timestamp.append(event_copy)
     
-    # Save to file (overwrite existing data)
+    # Combine existing and new events
+    combined_events = existing_events + events_with_timestamp
+    
+    # Save to file (overwrite with combined data)
     with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(events_with_timestamp, f, indent=2)
+        json.dump(combined_events, f, indent=2)
     
     return file_path
 
-def get_city_events(country_code, city_name):
+def get_city_events(country_code: str, city_name: str) -> List[Dict[str, Any]]:
     """
     Get saved events for a specific city from the extracted_city_data directory.
     

@@ -17,41 +17,26 @@ st.set_page_config(
 st.title("🚦 Foreshadow: Traffic Event Detector")
 st.subheader("Detect traffic-affecting events in your city")
 
-# Sidebar
-with st.sidebar:
-    st.header("About")
-    st.write("""
-    This application detects events that could affect traffic in a specified city.
-    It uses a two-step process:
-    1. Identify news articles relevant to traffic in the city
-    2. Extract structured event information from relevant articles
-    """)
-    
-    st.header("How it works")
-    st.write("""
-    1. Select a country and city
-    2. The app searches for news about that city
-    3. AI identifies which news could affect traffic
-    4. For relevant news, AI extracts structured event details
-    5. Data is saved for future reference
-    """)
-
 # Main content area
 # Country selection
 country_options = get_country_options()
-country_code, country_name = st.selectbox(
-    "Select a country:",
-    options=country_options,
-    format_func=lambda x: x[1],  # Display country name
-    index=0
-)
+cols = st.columns(2)
 
-# City selection based on country
-cities = get_cities_for_country(country_code)
-if cities:
-    city = st.selectbox("Select a city:", options=cities)
-else:
-    city = st.text_input("Enter a city name (no predefined cities available for this country):", placeholder="e.g., San Francisco")
+with cols[0]:
+    country_code, country_name = st.selectbox(
+        "Select a country:",
+        options=country_options,
+        format_func=lambda x: x[1],  # Display country name
+        index=0
+    )
+
+with cols[1]:
+    # City selection based on country
+    cities = get_cities_for_country(country_code)
+    if cities:
+        city = st.selectbox("Select a city:", options=cities)
+    else:
+        city = st.text_input("Enter a city name (no predefined cities available for this country):", placeholder="e.g., San Francisco")
 
 days = st.slider("Days of news to search:", min_value=1, max_value=30, value=7)
 
@@ -142,7 +127,7 @@ if search_button and city:
                 "Date": event.get('date', 'Unknown'),
                 "Time": event.get('time', 'Unknown'),
                 "Scale": event.get('scale', 'Unknown'),
-                "City": event.get('city', 'Unknown'),
+                "City": event.get('city_name', 'Unknown'),
             }
             events_list.append(event_dict)
         
