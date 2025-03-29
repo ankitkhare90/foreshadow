@@ -23,10 +23,11 @@ class EventDetector:
     def _extract_events_with_llm(self, text):
         prompt = f"""
         Extract traffic-related events from this text. For each event, provide:
-        1. Event type (concert, road closure, construction, festival, etc.)
-        2. Location (as specific as possible)
-        3. Date and time (if available)
-        4. Expected attendance or scale (if mentioned)
+        1. Event type (concert, sport event, road closure, construction, festival, etc.)
+        2. Location (as specific as possible such as street name, pincode, landmark, etc.)
+        3. Date (as specific as possible such as 01-01-2025 etc.)
+        4. Time (as specific as possible such as 10:00 AM, 10:00 PM, etc.)
+        5. Expected attendance or scale (if mentioned)
         
         Return JSON format only, with no explanation:
         [
@@ -34,6 +35,7 @@ class EventDetector:
             "event_type": "...",
             "location": "...",
             "date": "...",
+            "time": "...",
             "scale": "..."
           }}
         ]
