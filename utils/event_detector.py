@@ -42,19 +42,20 @@ class EventDetector:
         
         Text: {text}
         """
-        
+
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
                 temperature=0.1,
-                max_tokens=500
+                max_completion_tokens=2048,
             )
-            
+
             return json.loads(response.choices[0].message.content)
         except json.JSONDecodeError:
             print("Error parsing JSON response from LLM")
             return []
         except Exception as e:
             print(f"Error calling OpenAI API: {e}")
-            return [] 
+            return []
