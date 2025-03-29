@@ -36,9 +36,7 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Data files
-/data/*
-!data/.gitkeep
+data/extracted_city_data/*
 
 # VSCode
 .vscode/

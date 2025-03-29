@@ -10,9 +10,11 @@ load_dotenv()
 # Define default data directory and events file path
 DEFAULT_DATA_DIR = "data"
 _events_file = os.path.join(DEFAULT_DATA_DIR, "events.json")
+EXTRACTED_CITY_DATA_DIR = os.path.join(DEFAULT_DATA_DIR, "extracted_city_data")
 
-# Ensure data directory exists
+# Ensure data directories exist
 os.makedirs(DEFAULT_DATA_DIR, exist_ok=True)
+os.makedirs(EXTRACTED_CITY_DATA_DIR, exist_ok=True)
 
 def get_openai_client():
     """Get OpenAI client with API key from environment variables"""
@@ -130,3 +132,65 @@ def parse_date_with_llm(date_text, client=None):
     except Exception as e:
         print(f"Error parsing date: {e}")
         return datetime.now().date()  # Fallback to today 
+
+def save_city_events(events, country_code, city_name):
+    """
+    Save extracted events for a specific city to a JSON file in the extracted_city_data directory.
+    The file is named using the country_code and city_name: country-code_city_name.json
+    
+    Args:
+        events (list): List of event dictionaries to save
+        country_code (str): Three-letter country code
+        city_name (str): Name of the city
+        
+    Returns:
+        str: Path to the saved file
+    """
+    if not events:
+        return None
+        
+    # Create a clean filename: country-code_city_name.json
+    # Replace spaces with underscores and convert to lowercase
+    clean_city_name = city_name.replace(" ", "_").lower()
+    filename = f"{country_code.lower()}_{clean_city_name}.json"
+    file_path = os.path.join(EXTRACTED_CITY_DATA_DIR, filename)
+    
+    # Add timestamps to events
+    events_with_timestamp = []
+    for event in events:
+        event_copy = event.copy()
+        event_copy["created_at"] = datetime.now().isoformat()
+        event_copy["city"] = city_name
+        event_copy["country_code"] = country_code
+        events_with_timestamp.append(event_copy)
+    
+    # Save to file (overwrite existing data)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(events_with_timestamp, f, indent=2)
+    
+    return file_path
+
+def get_city_events(country_code, city_name):
+    """
+    Get saved events for a specific city from the extracted_city_data directory.
+    
+    Args:
+        country_code (str): Three-letter country code
+        city_name (str): Name of the city
+        
+    Returns:
+        list: List of event dictionaries, or empty list if file doesn't exist
+    """
+    clean_city_name = city_name.replace(" ", "_").lower()
+    filename = f"{country_code.lower()}_{clean_city_name}.json"
+    file_path = os.path.join(EXTRACTED_CITY_DATA_DIR, filename)
+    
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading city data: {e}")
+            return []
+    else:
+        return [] 
