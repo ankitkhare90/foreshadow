@@ -1,4 +1,3 @@
-
 import json
 import os
 
@@ -56,8 +55,7 @@ def extract_event(article: Dict[str, Any], city: str) -> List[Dict[str, Any]]:
     """Extract structured event data from text using LLM"""
 
     city_context = f"Focus on events in or near {city}."
-    text = f"Title: {article['title']}.
-    Full content: {article['full_content']}"
+    text = f"Title: {article['title']}\nFull content: {article['full_content']}"
 
     prompt = f"""
     Extract events that can affect road traffic from this text. {city_context}
