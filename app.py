@@ -104,28 +104,17 @@ search_button = st.button("Search for Traffic Events", type="primary")
 if search_button and city:
     with st.spinner(f"Searching for news in {city}..."):
         # Fetch news with city in the query
-        query = f"{city} AND (traffic OR construction OR road OR concert OR event OR festival)"
+        query = f"{city}"
         
         # Try to fetch real news, fallback to mock data if API key not available
         try:
             articles = fetch_news(query=query, days=days)
             if not articles:
-                st.warning("No articles found or API key issue. Generating mock data...")
-                articles = generate_mock_data_for_city(city, num_articles=10)
+                st.warning("No articles found or API key issue.")
+            else:
+                st.success(f"Found {len(articles)} news articles about {city}")
         except Exception as e:
             st.error(f"Error fetching news: {e}")
-            st.info("Using mock data instead...")
-            articles = generate_mock_data_for_city(city, num_articles=10)
-    
-    st.success(f"Found {len(articles)} news articles about {city}")
-    
-    # Display raw articles in an expander
-    with st.expander("Raw News Articles"):
-        for i, article in enumerate(articles, 1):
-            st.subheader(f"Article #{i}: {article.get('title', 'No Title')}")
-            st.write(f"Source: {article.get('source', {}).get('name', 'Unknown')}")
-            st.write(f"Description: {article.get('description', 'No description')}")
-            st.write("---")
     
     # Process with AI
     with st.spinner("Analyzing articles for traffic relevance..."):
