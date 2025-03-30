@@ -1,7 +1,8 @@
 import os
 import json
+import re
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from openai import OpenAI
 from datetime import datetime, date
 from dateutil import parser as date_parser
@@ -10,6 +11,44 @@ load_dotenv()
 
 # Initialize the OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def validate_event_date(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validates the start_date and end_date of an event and sets defaults if invalid.
+    
+    Args:
+        event: Event dictionary containing event details
+        
+    Returns:
+        The event dictionary with validated date fields
+    """
+    
+    try:
+        if event.get("start_date"):
+            try:
+                date_obj = date_parser.parse(event["start_date"], fuzzy=True).date()
+                event["start_date"] = date_obj.strftime("%d-%m-%Y")
+            except (ValueError, TypeError):
+                print(f"Invalid start_date: {event['start_date']}")
+        else:
+            print(f"No start_date provided for event: {event}")
+            return {}
+
+        # Handle end_date
+        if event.get("end_date"):
+            try:
+                date_obj = date_parser.parse(event["end_date"], fuzzy=True).date()
+                event["end_date"] = date_obj.strftime("%d-%m-%Y")
+            except:
+                event["end_date"] = event.get("start_date")
+        else:
+            event["end_date"] = event["start_date"]
+            
+    except:
+        return {}
+    
+    return event
+
 
 def validate_event_time(event: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -99,12 +138,15 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
     - Event type (e.g., concert, sport event, road closure, construction, festival, public protest) 
     - Event name (if mentioned, otherwise null) 
     - Location (as specific as possible, including venue, street name, locality, landmark, city, etc.) 
-    - Date (in DD-MM-YYYY format, as specific as possible) 
-    - Start time (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
-    - End time (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
+    - Start Date: Date on which the event is likely to start (in DD-MM-YYYY format, as specific as possible)
+    - End Date: Date on which the event is likely to end (in DD-MM-YYYY format, as specific as possible)
+    - Start Time: Time on which the event is likely to start (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
+    - End Time: Time on which the event is likely to end (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
     - Expected traffic impact (low, medium, or high, inferred if not explicitly stated) 
     - Source (the specific web page or article where the information is found) 
-    If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), assume a start time of 18:00. If no traffic-related events are found, return null."""
+    If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), assume a start time of 18:00. 
+    IMPORTANT: start_date is very important, so make sure to always include it for every event.
+    If no traffic-related events are found, return null."""
     
     print("--------------------------------")
     print(f"Prompt: {prompt}")
@@ -140,7 +182,8 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
                                         "event_type": {"type": "string"},
                                         "event_name": {"type": ["string", "null"]},
                                         "location": {"type": "string"},
-                                        "date": {"type": "string"},
+                                        "start_date": {"type": "string"},
+                                        "end_date": {"type": "string"},
                                         "start_time": {"type": "string"},
                                         "end_time": {"type": "string"},
                                         "traffic_impact": {"type": "string", "enum": ["low", "medium", "high"]},
@@ -171,9 +214,9 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
         print("--------------------------------")
         print(f"Found {len(events)} events. {events}")
         print("--------------------------------")
-        
-        # Validate event times and set defaults if needed
+
         events = [validate_event_time(event) for event in events]
+        events = [validate_event_date(event) for event in events]
         
         return events
         
