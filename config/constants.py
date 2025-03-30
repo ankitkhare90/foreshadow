@@ -1,3 +1,7 @@
+# Geocoding constants
+GEOCODE_API_URL = "https://api-pre-prod.locus-api.com/v1/client/dsl-internal/geocodeV2"
+
+
 CODE_COUNTRY = {'AD': 'Andorra',
  'AE': 'United Arab Emirates',
  'AF': 'Afghanistan',

@@ -10,6 +10,36 @@ load_dotenv()
 # Initialize the OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+def validate_event_time(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validates the start_time and end_time of an event and sets defaults if invalid.
+    
+    Args:
+        event: Event dictionary containing event details
+        
+    Returns:
+        The event dictionary with validated time fields
+    """
+    try:
+        # Check if start_time exists and is parseable
+        valid_time = False
+        if event.get("start_time"):
+            try:
+                # Try to parse the time string
+                datetime.strptime(event["start_time"], "%I:%M %p")
+                valid_time = True
+            except ValueError:
+                print(f"Invalid start_time: {event['start_time']}")
+
+        if not valid_time:
+            event["start_time"] = "12:00 AM"
+            event["end_time"] = "11:59 PM"
+    except Exception:
+        event["start_time"] = "12:00 AM"
+        event["end_time"] = "11:59 PM"
+    
+    return event
+
 def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[Dict[str, Any]]:
     """
     Find events that could affect road traffic in the specified city using OpenAI with web search.
@@ -45,7 +75,7 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
     else:
         search_prompt = f"Find events in {city} that could affect road traffic from internet search in the next {days} days."
 
-    prompt = """You are a helpful assistant that finds event information affecting road traffic from internet and returns it in a structured JSON format. 
+    prompt = f"""You are a helpful assistant that finds event information affecting road traffic from internet and returns it in a structured JSON format. 
     {search_prompt}
     Example events that could affect road traffic are concerts, sports events, road closures, construction, festivals, public protests, etc.
     
@@ -57,7 +87,12 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
     - Start time (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
     - End time (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
     - Expected traffic impact (low, medium, or high, inferred if not explicitly stated) 
-    - Source (the specific web page or article where the information is found) If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), assume a start time of 18:00. If no traffic-related events are found, return null."""
+    - Source (the specific web page or article where the information is found) 
+    If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), assume a start time of 18:00. If no traffic-related events are found, return null."""
+    
+    print("--------------------------------")
+    print(f"Prompt: {prompt}")
+    print("--------------------------------")
     
     # Prepare the conversation messages
     messages = [
@@ -120,6 +155,10 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
         print("--------------------------------")
         print(f"Found {len(events)} events. {events}")
         print("--------------------------------")
+        
+        # Validate event times and set defaults if needed
+        events = [validate_event_time(event) for event in events]
+        
         return events
         
     except Exception as e:
