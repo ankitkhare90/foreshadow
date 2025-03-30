@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
 from datetime import datetime, date
+from dateutil import parser as date_parser
 
 load_dotenv()
 
@@ -21,20 +22,35 @@ def validate_event_time(event: Dict[str, Any]) -> Dict[str, Any]:
         The event dictionary with validated time fields
     """
     try:
-        # Check if start_time exists and is parseable
-        valid_time = False
+        # Handle start_time
         if event.get("start_time"):
             try:
-                # Try to parse the time string
-                datetime.strptime(event["start_time"], "%I:%M %p")
-                valid_time = True
-            except ValueError:
+                # Use dateutil.parser to automatically detect the time format
+                time_obj = date_parser.parse(event["start_time"], fuzzy=True)
+                # Convert to 12-hour format
+                event["start_time"] = time_obj.strftime("%I:%M %p")
+            except (ValueError, TypeError):
                 print(f"Invalid start_time: {event['start_time']}")
-
-        if not valid_time:
+                event["start_time"] = "12:00 AM"
+        else:
+            # No start_time provided
             event["start_time"] = "12:00 AM"
+
+        # Handle end_time
+        if event.get("end_time"):
+            try:
+                # Use dateutil.parser to automatically detect the time format
+                time_obj = date_parser.parse(event["end_time"], fuzzy=True)
+                # Convert to 12-hour format
+                event["end_time"] = time_obj.strftime("%I:%M %p")
+            except (ValueError, TypeError):
+                event["end_time"] = "11:59 PM"
+        else:
+            # No end_time provided
             event["end_time"] = "11:59 PM"
+            
     except Exception:
+        # Fallback for any unexpected errors
         event["start_time"] = "12:00 AM"
         event["end_time"] = "11:59 PM"
     
