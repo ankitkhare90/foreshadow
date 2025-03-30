@@ -48,8 +48,15 @@ def create_event_map(events, city_name):
         'unknown': 'blue'
     }
     
+    # Sort events by impact level (low→medium→high) so that smaller circles appear on top
+    impact_order = {'low': 1, 'medium': 2, 'high': 3, 'unknown': 4}
+    sorted_events = sorted(
+        events_with_coords,
+        key=lambda e: impact_order.get(e.get('traffic_impact', 'unknown').lower(), 5)
+    )
+    
     # Add markers and circles for each event
-    for event in events_with_coords:
+    for event in sorted_events:
         # Get event details
         lat, lng = event.get('latitude'), event.get('longitude')
         event_name = event.get('event_name') or "Unnamed Event"
@@ -60,15 +67,32 @@ def create_event_map(events, city_name):
         impact = event.get('traffic_impact', 'unknown').lower()
         source = event.get('source', 'Unknown')
         
-        # Calculate radius based on impact (in meters)
-        radius_km = event.get('influence_radius', 1.0)/2
-        radius_m = radius_km * 1000  # Convert km to meters
+        # Set circle radius based on traffic impact (in meters)
+        if impact == 'high':
+            radius_m = 1000  # 1000 meters for high impact
+            fill_opacity = 0.1  # Lower opacity for large circles
+            weight = 1  # Thinner border
+        elif impact == 'medium':
+            radius_m = 500   # 500 meters for medium impact
+            fill_opacity = 0.15
+            weight = 2
+        elif impact == 'low':
+            radius_m = 250   # 250 meters for low impact
+            fill_opacity = 0.2
+            weight = 3  # Thicker border
+        else:
+            radius_m = 250   # Default to 250 meters for unknown impact
+            fill_opacity = 0.2
+            weight = 2
+        
+        # Get radius in km for display
+        radius_km = radius_m / 1000
         
         # Create popup HTML
         popup_html = f"""
         <div style="width: 250px">
-            <h4>{event_name}</h4>
-            <b>Type:</b> {event_type}<br>
+            <h5>{event_type.capitalize()}</h5>
+            <b>Event Name:</b> {event_name}<br>
             <b>Location:</b> {location}<br>
             <b>Date:</b> {date}<br>
             <b>Time:</b> {time}<br>
@@ -86,13 +110,14 @@ def create_event_map(events, city_name):
         
         # Create circle popup HTML with more information
         circle_popup_html = f"""
-        <div style="width: 200px">
-            <h5>{event_type}</h5>
+        <div style="width: 250px">
+            <h5>{event_type.capitalize()}</h5>
             <b>Event Name:</b> {event_name}<br>
             <b>Location:</b> {location}<br>
             <b>Date:</b> {date}<br>
             <b>Time:</b> {time}<br>
             <b>Traffic Impact:</b> {impact.upper()}<br>
+            <b>Impact Radius:</b> {radius_km} km<br>
         </div>
         """
         
@@ -102,7 +127,8 @@ def create_event_map(events, city_name):
             radius=radius_m,
             color=impact_colors.get(impact, 'blue'),
             fill=True,
-            fill_opacity=0.2,
+            fill_opacity=fill_opacity,
+            weight=weight,
             popup=folium.Popup(circle_popup_html, max_width=250)
         ).add_to(m)
     
@@ -200,11 +226,15 @@ if show_saved_events and existing_events:
         
         # Create and display map for saved events
         st.subheader(f"Map of Events in {selected_city}")
-        map_saved = create_event_map(existing_events, selected_city)
-        if map_saved:
-            st_folium(map_saved, returned_objects=[])
-        else:
-            st.info("No geographic coordinates available for saved events.")
+        
+        # Center the map on the page
+        col1, col2, col3 = st.columns([1, 10, 1])
+        with col2:
+            map_saved = create_event_map(existing_events, selected_city)
+            if map_saved:
+                st_folium(map_saved, width=800, height=600, returned_objects=[])
+            else:
+                st.info("No geographic coordinates available for saved events.")
     else:
         st.info(f"No event details found in the saved data for {selected_city}")
 
@@ -298,11 +328,15 @@ if search_button and selected_city:
         
         # Create map for search results
         st.subheader(f"Map of Traffic Events in {selected_city}")
-        map_result = create_event_map(geotagged_events, selected_city)
-        if map_result:
-            st_folium(map_result, width=1200, height=600, returned_objects=[])
-        else:
-            st.info("No geographic coordinates available for the events.")
+        
+        # Center the map on the page
+        col1, col2, col3 = st.columns([1, 10, 1])
+        with col2:
+            map_result = create_event_map(geotagged_events, selected_city)
+            if map_result:
+                st_folium(map_result, width=800, height=600, returned_objects=[])
+            else:
+                st.info("No geographic coordinates available for the events.")
         
         # Also show the raw JSON for reference
         with st.expander("View raw JSON data"):
