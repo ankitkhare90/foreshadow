@@ -65,7 +65,6 @@ def create_event_map(events, city_name):
         date = event.get('date', 'Unknown')
         time = event.get('time', '')
         impact = event.get('traffic_impact', 'unknown').lower()
-        source = event.get('source', 'Unknown')
         
         # Set circle radius based on traffic impact (in meters)
         if impact == 'high':
@@ -170,17 +169,17 @@ with st.sidebar:
 
     if search_option == "Days ahead":
         search_days_ahead = st.slider("Number of days to search ahead:", min_value=1, max_value=30, value=7)
-        search_start_date = None
-        search_end_date = None
+        search_start_date = pd.Timestamp.now().date()
+        search_end_date = pd.Timestamp.now().date() + pd.Timedelta(days=search_days_ahead)
     else:
         search_days_ahead = None
         search_start_date = st.date_input("Start date")
         search_end_date = st.date_input("End date", value=pd.Timestamp.now().date() + pd.Timedelta(days=7))
 
     # Check for existing events and add view option
-    existing_events = get_city_events(selected_country_code, selected_city)
+    existing_events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
     if existing_events:
-        st.info(f"Found {len(existing_events)} previously saved events for {selected_city}.")
+        st.info(f"Found {len(existing_events)} previously saved events for {selected_city} within the selected date range.")
         show_saved_events = st.button("View Saved Events", type="secondary", use_container_width=True)
     else:
         show_saved_events = False
@@ -198,15 +197,13 @@ if show_saved_events and existing_events:
         website_name = get_website_name(source_url)
         
         saved_event_display_item = {
+            "Date": saved_event.get('date', 'Unknown'),
             "Type": saved_event.get('event_type', 'Unknown'),
             "Name": saved_event.get('event_name', '') or 'N/A',
             "Location": saved_event.get('location', 'Unknown'),
-            "Date": saved_event.get('date', 'Unknown'),
             "Time": saved_event.get('time', 'Unknown'),
             "Impact": saved_event.get('traffic_impact', 'Unknown').upper(),
-            "Source": website_name,  # Add website name as separate column
             "Url": source_url  # Just use the raw URL
-            
         }
         
         # Add coordinates if available
@@ -220,6 +217,17 @@ if show_saved_events and existing_events:
     if saved_events_display_data:
         saved_events_df = pd.DataFrame(saved_events_display_data)
         
+        # Sort dataframe by date (earliest first)
+        try:
+            # Try converting to datetime for proper sorting
+            saved_events_df['Date'] = pd.to_datetime(saved_events_df['Date'], errors='coerce')
+            saved_events_df = saved_events_df.sort_values('Date')
+            # Format dates back to string for display
+            saved_events_df['Date'] = saved_events_df['Date'].dt.strftime('%d-%m-%Y')
+        except Exception:
+            # If date conversion fails, try basic string sorting
+            saved_events_df = saved_events_df.sort_values('Date')
+            
         # Place dataframe inside an expander
         with st.expander("Click to view event data table"):
             # Configure columns with proper formatting
@@ -246,7 +254,11 @@ if show_saved_events and existing_events:
             else:
                 st.info("No geographic coordinates available for saved events.")
     else:
-        st.info(f"No event details found in the saved data for {selected_city}")
+        if search_start_date and search_end_date:
+            date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
+            st.info(f"No event details found in the saved data for {selected_city} {date_range_text}")
+        else:
+            st.info(f"No event details found in the saved data for {selected_city}")
 
 if search_button and selected_city:
     # Create a status container to track progress
@@ -317,16 +329,14 @@ if search_button and selected_city:
         display_events_data = []
         for search_result in search_results:
             source_url = search_result.get("source", "Unknown")
-            website_name = get_website_name(source_url)
             
             display_event_item = {
+                "Date": search_result.get("date", "Unknown"),
                 "Type": search_result.get("event_type", "Unknown"),
                 "Name": search_result.get("event_name", "N/A") or "N/A",
                 "Location": search_result.get("location", "Unknown"),
-                "Date": search_result.get("date", "Unknown"),
                 "Time": f"{search_result.get('start_time', '')} - {search_result.get('end_time', '')}",
                 "Impact": search_result.get("traffic_impact", "Unknown").upper(),
-                "Source": website_name,  # Add website name as separate column
                 "Url": source_url  # Just use the raw URL
             }
             
@@ -334,6 +344,17 @@ if search_button and selected_city:
 
         display_events_df = pd.DataFrame(display_events_data)
         
+        # Sort dataframe by date (earliest first)
+        try:
+            # Try converting to datetime for proper sorting
+            display_events_df['Date'] = pd.to_datetime(display_events_df['Date'], errors='coerce')
+            display_events_df = display_events_df.sort_values('Date')
+            # Format dates back to string for display
+            display_events_df['Date'] = display_events_df['Date'].dt.strftime('%d-%m-%Y')
+        except Exception:
+            # If date conversion fails, try basic string sorting
+            display_events_df = display_events_df.sort_values('Date')
+            
         # Place dataframe inside an expander
         with st.expander("Click to view event data table"):
             # Configure columns with proper formatting
