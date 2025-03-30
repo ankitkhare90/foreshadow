@@ -162,20 +162,6 @@ def show_event_table(events):
     
     if all_events:
         events_df = pd.DataFrame(all_events)
-        
-        # Sort dataframe by date (earliest first)
-        try:
-            # Try converting to datetime for proper sorting
-            events_df['Start Date'] = pd.to_datetime(events_df['Start Date'], errors='coerce')
-            events_df['End Date'] = pd.to_datetime(events_df['End Date'], errors='coerce')
-            events_df = events_df.sort_values('Start Date')
-            # Format dates back to string for display
-            events_df['Start Date'] = events_df['Start Date'].dt.strftime('%d-%m-%Y')
-            events_df['End Date'] = events_df['End Date'].dt.strftime('%d-%m-%Y')
-        except Exception:
-            # If date conversion fails, try basic string sorting
-            events_df = events_df.sort_values('Start Date')
-            
         # Place dataframe inside an expander
         with st.expander("Click to view event data table"):
             # Configure columns with proper formatting  
@@ -278,19 +264,21 @@ if show_saved_events and events:
 # ==============================================================================
 
 if search_button and selected_city:
-    
     with st.status(f"Searching for traffic events in {selected_city}...", expanded=True) as status:
         try:
             st.write("Finding traffic events...")
-
-            events = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date)
-            date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
+            event_types = ["concert/ live shows/ sport event", "road closure/ construction", "public protest/ demonstration/ gathering"]
+            all_events = []
+            for event_type in event_types:
+                events = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date, event_type=event_type)
+                st.write(f"Found {len(events)} traffic-affecting events for {event_type} category.")
+                all_events.extend(events)
             
-            if events:
-                st.write(f"Found {len(events)} traffic-affecting events")
+            if all_events:
+                st.write(f"Found {len(all_events)} traffic-affecting events")
                 
                 events_for_storage = []
-                for event in events:
+                for event in all_events:
                     storage_ready_event = {
                         'event_type': event.get('event_type', 'Unknown'),
                         'event_name': event.get('event_name', ''),
@@ -313,11 +301,12 @@ if search_button and selected_city:
                 saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
                 st.write("Events saved to file...")
                 status.update(
-                    label=f"Found {len(events)} traffic events in {selected_city}",
+                    label=f"Found {len(all_events)} traffic events in {selected_city}",
                     state="complete"
                 )
                 
             else:
+                date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
                 status.update(
                     label=f"No new traffic events found in {selected_city} for the {date_range_text}",
                     state="complete"
@@ -330,7 +319,7 @@ if search_button and selected_city:
     show_event_table(events)
     show_events_map(events)
 
-elif not show_saved_events:
+if not show_saved_events and not search_button:
     # Display instructions when no action has been taken
     st.info("👈 Use the sidebar to select a location and search options, then click 'Search for Traffic Events' to begin")
     

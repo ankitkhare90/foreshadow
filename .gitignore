@@ -36,8 +36,6 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-data/extracted_city_data/*
-
 # VSCode
 .vscode/
 *.code-workspace

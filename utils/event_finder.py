@@ -163,7 +163,7 @@ def get_prompt(city: str, country: str, event_type: str,  start_date: str,  end_
     return prompt
 
 def find_traffic_events(city: str, country: str,
-                        start_date, end_date) -> List[Dict[str, Any]]:
+                        start_date, end_date, event_type: str) -> List[Dict[str, Any]]:
     """
     Find events that could affect road traffic in the specified city using OpenAI with web search.
     
@@ -177,9 +177,7 @@ def find_traffic_events(city: str, country: str,
     Returns:
         List of structured event dictionaries
     """
-    
-    event_types = ["concert/ live shows/ sport event", "road closure/ construction", "public protest/ demonstration/ gathering"]
-    full_events = []
+
     tools = [
         {
             "type": "web_search_preview",
@@ -192,40 +190,32 @@ def find_traffic_events(city: str, country: str,
         }
     ]
 
-    for event_type in event_types:
-        try:
-            response = client.responses.create(
-                model="gpt-4o",
-                input = [
-                    {
-                        "role": "user",
-                        "content": get_prompt(city, country, event_type, start_date, end_date)
-                    }
-                ],
-                tools=tools,
-                tool_choice={"type": "web_search_preview"},
-                text=text_format
-            )
+    try:
+        response = client.responses.create(
+            model="gpt-4o",
+            input = [
+                {
+                    "role": "user",
+                    "content": get_prompt(city, country, event_type, start_date, end_date)
+                }
+            ],
+            tools=tools,
+            tool_choice={"type": "web_search_preview"},
+            text=text_format
+        )
 
-            # Parse the response - field name changes with new endpoint
-            events_json = response.output_text
-            events_data = json.loads(events_json) if events_json else {"events": []}
-            events = events_data.get("events", []) if events_data else []
-            full_events.extend(events)
-            print(f"Found {len(events)} events for event type: {event_type}")
+        # Parse the response - field name changes with new endpoint
+        events_json = response.output_text
+        events_data = json.loads(events_json) if events_json else {"events": []}
+        events = events_data.get("events", []) if events_data else []
+        print(f"Found {len(events)} events for event type: {event_type}")
 
-        except Exception as e:
-            print(f"Error finding traffic events: {e} for event type: {event_type}")
-
-    if full_events is None:
+    except Exception as e:
+        print(f"Error finding traffic events: {e} for event type: {event_type}")
         return []
-    
-    print("--------------------------------")
-    print(f"Found {len(full_events)} events. {full_events}")
-    print("--------------------------------")
 
-    full_events = [validate_event_time(event) for event in full_events]
-    full_events = [validate_event_date(event) for event in full_events]
-    full_events = [event for event in full_events if event]
+    events = [validate_event_time(event) for event in events]
+    events = [validate_event_date(event) for event in events]
+    events = [event for event in events if event]
     
-    return full_events
+    return events
