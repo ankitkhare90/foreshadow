@@ -190,9 +190,6 @@ with st.sidebar:
 
 # Main content area
 if show_saved_events and existing_events:
-    # Display saved events
-    st.subheader(f"Saved Events for {selected_city}")
-    
     # Convert to DataFrame for display
     saved_events_display_data = []
     for saved_event in existing_events:
@@ -207,22 +204,35 @@ if show_saved_events and existing_events:
             "Date": saved_event.get('date', 'Unknown'),
             "Time": saved_event.get('time', 'Unknown'),
             "Impact": saved_event.get('traffic_impact', 'Unknown').upper(),
-            "Source": f"[{website_name}]({source_url})"  # Markdown link format
+            "Source": website_name,  # Add website name as separate column
+            "Url": source_url  # Just use the raw URL
+            
         }
         
         # Add coordinates if available
-        latitude = saved_event.get("latitude")
-        longitude = saved_event.get("longitude")
-        if latitude and longitude:
-            saved_event_display_item["Coordinates"] = f"{latitude:.4f}, {longitude:.4f}"
+        # latitude = saved_event.get("latitude")
+        # longitude = saved_event.get("longitude")
+        # if latitude and longitude:
+        #     saved_event_display_item["Coordinates"] = f"{latitude:.4f}, {longitude:.4f}"
             
         saved_events_display_data.append(saved_event_display_item)
     
     if saved_events_display_data:
         saved_events_df = pd.DataFrame(saved_events_display_data)
         
-        # Use table instead of dataframe
-        st.table(saved_events_df)
+        # Place dataframe inside an expander
+        with st.expander("Click to view event data table"):
+            # Configure columns with proper formatting
+            st.dataframe(
+                saved_events_df,
+                column_config={
+                    "Url": st.column_config.LinkColumn(
+                        "Url",
+                        display_text="🔗"
+                    )
+                },
+                use_container_width=True
+            )
         
         # Create and display map for saved events
         st.subheader(f"Map of Events in {selected_city}")
@@ -316,15 +326,27 @@ if search_button and selected_city:
                 "Date": search_result.get("date", "Unknown"),
                 "Time": f"{search_result.get('start_time', '')} - {search_result.get('end_time', '')}",
                 "Impact": search_result.get("traffic_impact", "Unknown").upper(),
-                "Source": f"[{website_name}]({source_url})",  # Markdown link format
+                "Source": website_name,  # Add website name as separate column
+                "Url": source_url  # Just use the raw URL
             }
             
             display_events_data.append(display_event_item)
 
         display_events_df = pd.DataFrame(display_events_data)
         
-        # Use table instead of dataframe with column configuration
-        st.table(display_events_df)
+        # Place dataframe inside an expander
+        with st.expander("Click to view event data table"):
+            # Configure columns with proper formatting
+            st.dataframe(
+                display_events_df,
+                column_config={
+                    "Url": st.column_config.LinkColumn(
+                        "Url", 
+                        display_text="🔗"
+                    )
+                },
+                use_container_width=True
+            )
         
         # Create map for search results
         st.subheader(f"Map of Traffic Events in {selected_city}")
