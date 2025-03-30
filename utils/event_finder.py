@@ -106,6 +106,62 @@ def validate_event_time(event: Dict[str, Any]) -> Dict[str, Any]:
     
     return event
 
+text_format = {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "event_list",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "events": {
+                                    "type": ["array", "null"],
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "event_type": {"type": "string"},
+                                            "event_name": {"type": ["string", "null"]},
+                                            "location": {"type": "string"},
+                                            "start_date": {"type": "string"},
+                                            "end_date": {"type": "string"},
+                                            "start_time": {"type": "string"},
+                                            "end_time": {"type": "string"},
+                                            "traffic_impact": {"type": "string", "enum": ["low", "medium", "high"]},
+                                            "source": {"type": "string"}
+                                        },
+                                        "required": ["event_type", "event_name", "location", "start_date", "end_date", "start_time", "end_time", "traffic_impact", "source"],
+                                        "additionalProperties": False
+                                    }
+                                }
+                            },
+                            "required": ["events"],
+                            "additionalProperties": False
+                        },
+                        "strict": True
+                    }
+                }
+
+def get_prompt(city: str, country: str, event_type: str,  start_date: str,  end_date: str) -> str:
+    """
+    Generate a prompt for finding traffic events in a specific city and country.
+    """
+    prompt = f"""You are a helpful assistant that finds {event_type} events information from internet and returns it in a structured JSON format. 
+        Find {event_type} events in {city} {country} between {start_date} and {end_date}.
+
+        Extract following details for each event: 
+        - Event type (e.g., concert, sport event, road closure, construction, festival, public protest) 
+        - Event name (if mentioned, otherwise null) 
+        - Location (as specific as possible, including venue, street name, locality, landmark, city, etc.) 
+        - Start Date: Date on which the event is likely to start (in DD-MM-YYYY format, as specific as possible)
+        - End Date: Date on which the event is likely to end (in DD-MM-YYYY format, as specific as possible)
+        - Start Time: Time on which the event is likely to start (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
+        - End Time: Time on which the event is likely to end (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
+        - Expected traffic impact (low, medium, or high, inferred if not explicitly stated) 
+        - Source (the specific web page or article where the information is found) 
+        If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, live shows,festivals), assume a start time of 18:00. 
+        IMPORTANT: Start Date is very important, so make sure to always include it for every event.
+    """
+    return prompt
+
 def find_traffic_events(city: str, country: str,
                         start_date, end_date) -> List[Dict[str, Any]]:
     """
@@ -121,7 +177,9 @@ def find_traffic_events(city: str, country: str,
     Returns:
         List of structured event dictionaries
     """
-    # Define the web search tool
+    
+    event_types = ["concert/ live shows/ sport event", "road closure/ construction", "public protest/ demonstration/ gathering"]
+    full_events = []
     tools = [
         {
             "type": "web_search_preview",
@@ -134,97 +192,40 @@ def find_traffic_events(city: str, country: str,
         }
     ]
 
-    prompt = f"""You are a helpful assistant that finds event information affecting road traffic from internet and returns it in a structured JSON format. 
-    Find events in {city} that could affect road traffic between {start_date} and {end_date}.
-    Example events that could affect road traffic are concerts, sports events, road closures, construction, festivals, public protests, etc.
-    
-    Extract following details for each event: 
-    - Event type (e.g., concert, sport event, road closure, construction, festival, public protest) 
-    - Event name (if mentioned, otherwise null) 
-    - Location (as specific as possible, including venue, street name, locality, landmark, city, etc.) 
-    - Start Date: Date on which the event is likely to start (in DD-MM-YYYY format, as specific as possible)
-    - End Date: Date on which the event is likely to end (in DD-MM-YYYY format, as specific as possible)
-    - Start Time: Time on which the event is likely to start (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
-    - End Time: Time on which the event is likely to end (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
-    - Expected traffic impact (low, medium, or high, inferred if not explicitly stated) 
-    - Source (the specific web page or article where the information is found) 
-    If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), assume a start time of 18:00. 
-    IMPORTANT: start_date is very important, so make sure to always include it for every event.
-    If no traffic-related events are found, return null."""
-    
-    print("--------------------------------")
-    print(f"Prompt: {prompt}")
-    print("--------------------------------")
-    
-    # Prepare the conversation messages
-    messages = [
-        {
-            "role": "user",
-            "content": prompt
-        }
-    ]
+    for event_type in event_types:
+        try:
+            response = client.responses.create(
+                model="gpt-4o",
+                input = [
+                    {
+                        "role": "user",
+                        "content": get_prompt(city, country, event_type, start_date, end_date)
+                    }
+                ],
+                tools=tools,
+                tool_choice={"type": "web_search_preview"},
+                text=text_format
+            )
 
-    try:
-        # Create the response using the new responses.create endpoint
-        response = client.responses.create(
-            model="gpt-4o",
-            input=messages,
-            tools=tools,
-            tool_choice={"type": "web_search_preview"},
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "event_list",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "events": {
-                                "type": ["array", "null"],
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "event_type": {"type": "string"},
-                                        "event_name": {"type": ["string", "null"]},
-                                        "location": {"type": "string"},
-                                        "start_date": {"type": "string"},
-                                        "end_date": {"type": "string"},
-                                        "start_time": {"type": "string"},
-                                        "end_time": {"type": "string"},
-                                        "traffic_impact": {"type": "string", "enum": ["low", "medium", "high"]},
-                                        "source": {"type": "string"}
-                                    },
-                                    "required": ["event_type", "location", "start_date", "start_time", "traffic_impact", "source"],
-                                    "additionalProperties": False
-                                }
-                            }
-                        },
-                        "required": ["events"],
-                        "additionalProperties": False
-                    },
-                    "strict": False
-                }
-            }
-        )
-        
-        # Parse the response - field name changes with new endpoint
-        events_json = response.output_text
-        events_data = json.loads(events_json) if events_json else {"events": []}
-        events = events_data.get("events", []) if events_data else []
-        
-        # Return empty list if null is returned
-        if events is None:
-            return []
-        
-        print("--------------------------------")
-        print(f"Found {len(events)} events. {events}")
-        print("--------------------------------")
+            # Parse the response - field name changes with new endpoint
+            events_json = response.output_text
+            events_data = json.loads(events_json) if events_json else {"events": []}
+            events = events_data.get("events", []) if events_data else []
+            full_events.extend(events)
+            print(f"Found {len(events)} events for event type: {event_type}")
 
-        events = [validate_event_time(event) for event in events]
-        events = [validate_event_date(event) for event in events]
-        events = [event for event in events if event]
-        
-        return events
-        
-    except Exception as e:
-        print(f"Error finding traffic events: {e}")
+        except Exception as e:
+            print(f"Error finding traffic events: {e} for event type: {event_type}")
+
+    if full_events is None:
         return []
+    
+    print("--------------------------------")
+    print(f"Found {len(full_events)} events. {full_events}")
+    print("--------------------------------")
+
+    full_events = [validate_event_time(event) for event in full_events]
+    full_events = [validate_event_date(event) for event in full_events]
+    full_events = [event for event in full_events if event]
+    
+    return full_events

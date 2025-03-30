@@ -243,7 +243,8 @@ if show_saved_events and existing_events:
                         display_text="🔗"
                     )
                 },
-                use_container_width=True
+                use_container_width=True,
+                hide_index=True
             )
         
         # Create and display map for saved events
@@ -347,15 +348,13 @@ if search_button and selected_city:
         # Sort dataframe by date (earliest first)
         try:
             # Try converting to datetime for proper sorting
-            display_events_df['Start Date'] = pd.to_datetime(display_events_df['Start Date'], errors='coerce')
-            display_events_df['End Date'] = pd.to_datetime(display_events_df['End Date'], errors='coerce')
-            display_events_df = display_events_df.sort_values('Start Date')
+            display_events_df['Date'] = pd.to_datetime(display_events_df['Date'], errors='coerce')
+            display_events_df = display_events_df.sort_values('Date')
             # Format dates back to string for display
-            display_events_df['Start Date'] = display_events_df['Start Date'].dt.strftime('%d-%m-%Y')
-            display_events_df['End Date'] = display_events_df['End Date'].dt.strftime('%d-%m-%Y')
+            display_events_df['Date'] = display_events_df['Date'].dt.strftime('%d-%m-%Y')
         except Exception:
             # If date conversion fails, try basic string sorting
-            display_events_df = display_events_df.sort_values('Start Date')
+            display_events_df = display_events_df.sort_values('Date')
             
         # Place dataframe inside an expander
         with st.expander("Click to view event data table"):
@@ -368,7 +367,8 @@ if search_button and selected_city:
                         display_text="🔗"
                     )
                 },
-                use_container_width=True
+                use_container_width=True,
+                hide_index=True
             )
         
         # Create map for search results
