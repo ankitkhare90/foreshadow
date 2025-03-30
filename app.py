@@ -97,6 +97,7 @@ def create_event_map(events):
             <b>Date:</b> {start_date} - {end_date}<br>
             <b>Time:</b> {time}<br>
             <b>Traffic Impact:</b> {impact.upper()}<br>
+            <b>Impact Radius:</b> {radius_km} km<br>
         </div>
         """
         
