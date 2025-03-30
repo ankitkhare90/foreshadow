@@ -22,7 +22,7 @@ def get_website_name(url):
     return url
 
 # Helper function to create map with events
-def create_event_map(events, city_name):
+def create_event_map(events):
     """Create a folium map with events plotted as markers with popups and radius circles"""
     # Find events with coordinates
     events_with_coords = [e for e in events if e.get('latitude') and e.get('longitude')]
@@ -104,7 +104,6 @@ def create_event_map(events, city_name):
         folium.Marker(
             location=[lat, lng],
             popup=folium.Popup(popup_html, max_width=300),
-            tooltip=f"{event_type}: {event_name}",
             icon=folium.Icon(color=impact_colors.get(impact, 'blue'))
         ).add_to(marker_cluster)
         
@@ -134,6 +133,79 @@ def create_event_map(events, city_name):
     
     return m
 
+def show_event_table(events):
+    """Create a table of events with columns for event type, name, location, date, time, and impact"""
+    all_events = []
+    for event in events:
+        source_url = event.get('source', 'Unknown')
+        website_name = get_website_name(source_url)
+        
+        event_display_item = {
+            "Start Date": event.get('start_date', 'Unknown'),
+            "End Date": event.get('end_date', 'Unknown'),
+            "Type": event.get('event_type', 'Unknown'),
+            "Name": event.get('event_name', '') or 'N/A',
+            "Location": event.get('location', 'Unknown'),
+            "Time": event.get('time', 'Unknown'),
+            "Impact": event.get('traffic_impact', 'Unknown').upper(),
+            "Url": source_url,  # Just use the raw URL
+            "Website": website_name
+        }
+        
+        # Add coordinates if available
+        latitude = event.get("latitude")
+        longitude = event.get("longitude")
+        if latitude and longitude:
+            event_display_item["Coordinates"] = f"{latitude:.4f}, {longitude:.4f}"
+            
+        all_events.append(event_display_item)
+    
+    if all_events:
+        events_df = pd.DataFrame(all_events)
+        
+        # Sort dataframe by date (earliest first)
+        try:
+            # Try converting to datetime for proper sorting
+            events_df['Start Date'] = pd.to_datetime(events_df['Start Date'], errors='coerce')
+            events_df['End Date'] = pd.to_datetime(events_df['End Date'], errors='coerce')
+            events_df = events_df.sort_values('Start Date')
+            # Format dates back to string for display
+            events_df['Start Date'] = events_df['Start Date'].dt.strftime('%d-%m-%Y')
+            events_df['End Date'] = events_df['End Date'].dt.strftime('%d-%m-%Y')
+        except Exception:
+            # If date conversion fails, try basic string sorting
+            events_df = events_df.sort_values('Start Date')
+            
+        # Place dataframe inside an expander
+        with st.expander("Click to view event data table"):
+            # Configure columns with proper formatting  
+            st.dataframe(
+                events_df,
+                column_config={
+                    "Url": st.column_config.LinkColumn(
+                        "Url",
+                        display_text="🔗"
+                    )
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.info("No events found")
+        
+def show_events_map(events):
+    col1, col2, col3 = st.columns([1, 10, 1])
+    with col2:
+        map_saved = create_event_map(events)
+        if map_saved:
+            st_folium(map_saved, width=800, height=600, returned_objects=[])
+        else:
+            st.info("No geographic coordinates available for saved events.")
+
+# ==============================================================================
+# Section: Page Start
+# ==============================================================================
+
 st.set_page_config(
     page_title="Traffic Event Finder",
     page_icon="🚦",
@@ -151,17 +223,21 @@ with st.sidebar:
     st.title("Search Controls")
     # Country selection
     country_options = get_country_options()
+    # Find index of India in the country options
+    india_index = next((i for i, (code, _) in enumerate(country_options) if code == "IN"), 0)
     selected_country_code, selected_country_name = st.selectbox(
         "Select a country:",
         options=country_options,
         format_func=lambda x: x[1],  # Display country name
-        index=0
+        index=india_index
     )
 
     # City selection based on country
     available_cities = get_cities_for_country(selected_country_code)
     if available_cities:
-        selected_city = st.selectbox("Select a city:", options=available_cities)
+        # Find index of Mumbai in the available cities
+        mumbai_index = next((i for i, city in enumerate(available_cities) if city == "Mumbai"), 0)
+        selected_city = st.selectbox("Select a city:", options=available_cities, index=mumbai_index)
     else:
         selected_city = st.text_input("Enter a city name (no predefined cities available for this country):", placeholder="e.g., San Francisco")
     
@@ -178,9 +254,9 @@ with st.sidebar:
         search_end_date = st.date_input("End date", format="DD-MM-YYYY")
 
     # Check for existing events and add view option
-    existing_events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
-    if existing_events:
-        st.info(f"Found {len(existing_events)} previously saved events for {selected_city} within the selected date range.")
+    events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
+    if events:
+        st.info(f"Found {len(events)} previously saved events for {selected_city} within the selected date range.")
         show_saved_events = st.button("View Saved Events", type="secondary", use_container_width=True)
     else:
         show_saved_events = False
@@ -188,206 +264,71 @@ with st.sidebar:
     # Add search button 
     search_button = st.button("Search for Traffic Events", type="primary", use_container_width=True)
 
-# Main content area
-if show_saved_events and existing_events:
-    # Convert to DataFrame for display
-    saved_events_display_data = []
-    for saved_event in existing_events:
-        # Extract website name for display
-        source_url = saved_event.get('source', 'Unknown')
-        website_name = get_website_name(source_url)
-        
-        saved_event_display_item = {
-            "Start Date": saved_event.get('start_date', 'Unknown'),
-            "End Date": saved_event.get('end_date', 'Unknown'),
-            "Type": saved_event.get('event_type', 'Unknown'),
-            "Name": saved_event.get('event_name', '') or 'N/A',
-            "Location": saved_event.get('location', 'Unknown'),
-            "Time": saved_event.get('time', 'Unknown'),
-            "Impact": saved_event.get('traffic_impact', 'Unknown').upper(),
-            "Url": source_url  # Just use the raw URL
-        }
-        
-        # Add coordinates if available
-        # latitude = saved_event.get("latitude")
-        # longitude = saved_event.get("longitude")
-        # if latitude and longitude:
-        #     saved_event_display_item["Coordinates"] = f"{latitude:.4f}, {longitude:.4f}"
-            
-        saved_events_display_data.append(saved_event_display_item)
-    
-    if saved_events_display_data:
-        saved_events_df = pd.DataFrame(saved_events_display_data)
-        
-        # Sort dataframe by date (earliest first)
-        try:
-            # Try converting to datetime for proper sorting
-            saved_events_df['Start Date'] = pd.to_datetime(saved_events_df['Start Date'], errors='coerce')
-            saved_events_df['End Date'] = pd.to_datetime(saved_events_df['End Date'], errors='coerce')
-            saved_events_df = saved_events_df.sort_values('Start Date')
-            # Format dates back to string for display
-            saved_events_df['Start Date'] = saved_events_df['Start Date'].dt.strftime('%d-%m-%Y')
-            saved_events_df['End Date'] = saved_events_df['End Date'].dt.strftime('%d-%m-%Y')
-        except Exception:
-            # If date conversion fails, try basic string sorting
-            saved_events_df = saved_events_df.sort_values('Start Date')
-            
-        # Place dataframe inside an expander
-        with st.expander("Click to view event data table"):
-            # Configure columns with proper formatting  
-            st.dataframe(
-                saved_events_df,
-                column_config={
-                    "Url": st.column_config.LinkColumn(
-                        "Url",
-                        display_text="🔗"
-                    )
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-        
-        # Create and display map for saved events
-        st.subheader(f"Map of Events in {selected_city}")
-        
-        # Center the map on the page
-        col1, col2, col3 = st.columns([1, 10, 1])
-        with col2:
-            map_saved = create_event_map(existing_events, selected_city)
-            if map_saved:
-                st_folium(map_saved, width=800, height=600, returned_objects=[])
-            else:
-                st.info("No geographic coordinates available for saved events.")
-    else:
-        if search_start_date and search_end_date:
-            date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
-            st.info(f"No event details found in the saved data for {selected_city} {date_range_text}")
-        else:
-            st.info(f"No event details found in the saved data for {selected_city}")
+# ==============================================================================
+# Section: View Saved Events
+# ==============================================================================
+
+if show_saved_events and events:
+    show_event_table(events)
+    st.subheader(f"Map of Events in {selected_city}")
+    show_events_map(events)
+
+# ==============================================================================
+# Section: Search
+# ==============================================================================
 
 if search_button and selected_city:
-    # Create a status container to track progress
-    search_results = []  # Initialize events list outside the try block
-    saved_file_path = None  # Initialize file_path variable
     
     with st.status(f"Searching for traffic events in {selected_city}...", expanded=True) as status:
         try:
             st.write("Finding traffic events...")
 
-            search_results = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date)
+            events = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date)
             date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
             
-            if search_results:
-                st.write(f"Found {len(search_results)} traffic-affecting events")
+            if events:
+                st.write(f"Found {len(events)} traffic-affecting events")
                 
-                st.write("Adding geographic coordinates to events...")
-                # Add geographic coordinates to events before saving
                 events_for_storage = []
-                for search_result in search_results:
+                for event in events:
                     storage_ready_event = {
-                        'event_type': search_result.get('event_type', 'Unknown'),
-                        'event_name': search_result.get('event_name', ''),
-                        'location': search_result.get('location', 'Unknown'),
-                        'start_date': search_result.get('start_date', 'Unknown'),
-                        'end_date': search_result.get('end_date', 'Unknown'),
-                        'start_time': search_result.get('start_time', ''),
-                        'end_time': search_result.get('end_time', ''),
-                        'time': f"{search_result.get('start_time', '')} - {search_result.get('end_time', '')}",
-                        'traffic_impact': search_result.get('traffic_impact', 'Unknown'),
-                        'source': search_result.get('source', 'Unknown'),
+                        'event_type': event.get('event_type', 'Unknown'),
+                        'event_name': event.get('event_name', ''),
+                        'location': event.get('location', 'Unknown'),
+                        'start_date': event.get('start_date', 'Unknown'),
+                        'end_date': event.get('end_date', 'Unknown'),
+                        'start_time': event.get('start_time', ''),
+                        'end_time': event.get('end_time', ''),
+                        'time': f"{event.get('start_time', '')} - {event.get('end_time', '')}",
+                        'traffic_impact': event.get('traffic_impact', 'Unknown'),
+                        'source': event.get('source', 'Unknown'),
                         'city_name': selected_city,
                         'country_code': selected_country_code
                     }
                     events_for_storage.append(storage_ready_event)
-                
-                # Geo-tag events to add coordinates
+                    
+                st.write("Adding geographic coordinates to events...")
                 geotagged_events = geo_tag_events(events_for_storage)
-
+                st.write("Saving events to file...")
                 saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
-                
+                st.write("Events saved to file...")
                 status.update(
-                    label=f"Found {len(search_results)} traffic events in {selected_city}",
+                    label=f"Found {len(events)} traffic events in {selected_city}",
                     state="complete"
                 )
+                
             else:
                 status.update(
-                    label=f"No traffic events found in {selected_city} for the {date_range_text}",
+                    label=f"No new traffic events found in {selected_city} for the {date_range_text}",
                     state="complete"
                 )
         except Exception as e:
             status.update(label=f"Error finding traffic events: {e}", state="error")
             st.error(f"Error finding traffic events: {e}")
-    
-    # Display results
-    if search_results:
-        st.subheader(f"Traffic Events in {selected_city}")
-        st.success(f"Found {len(search_results)} traffic-affecting events in {selected_city} for the {date_range_text}")
-        
-        if saved_file_path:
-            st.toast(f"Saved event data to {os.path.basename(saved_file_path)}", icon="✅")
-        
-        # Display events in a table
-        display_events_data = []
-        for search_result in search_results:
-            source_url = search_result.get("source", "Unknown")
-            
-            display_event_item = {
-                "Date": search_result.get("date", "Unknown"),
-                "Type": search_result.get("event_type", "Unknown"),
-                "Name": search_result.get("event_name", "N/A") or "N/A",
-                "Location": search_result.get("location", "Unknown"),
-                "Time": f"{search_result.get('start_time', '')} - {search_result.get('end_time', '')}",
-                "Impact": search_result.get("traffic_impact", "Unknown").upper(),
-                "Url": source_url  # Just use the raw URL
-            }
-            
-            display_events_data.append(display_event_item)
 
-        display_events_df = pd.DataFrame(display_events_data)
-        
-        # Sort dataframe by date (earliest first)
-        try:
-            # Try converting to datetime for proper sorting
-            display_events_df['Date'] = pd.to_datetime(display_events_df['Date'], errors='coerce')
-            display_events_df = display_events_df.sort_values('Date')
-            # Format dates back to string for display
-            display_events_df['Date'] = display_events_df['Date'].dt.strftime('%d-%m-%Y')
-        except Exception:
-            # If date conversion fails, try basic string sorting
-            display_events_df = display_events_df.sort_values('Date')
-            
-        # Place dataframe inside an expander
-        with st.expander("Click to view event data table"):
-            # Configure columns with proper formatting
-            st.dataframe(
-                display_events_df,
-                column_config={
-                    "Url": st.column_config.LinkColumn(
-                        "Url", 
-                        display_text="🔗"
-                    )
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-        
-        # Create map for search results
-        st.subheader(f"Map of Traffic Events in {selected_city}")
-        
-        # Center the map on the page
-        col1, col2, col3 = st.columns([1, 10, 1])
-        with col2:
-            map_result = create_event_map(geotagged_events, selected_city)
-            if map_result:
-                st_folium(map_result, width=800, height=600, returned_objects=[])
-            else:
-                st.info("No geographic coordinates available for the events.")
-        
-        # Also show the raw JSON for reference
-        with st.expander("View raw JSON data"):
-            st.code(json.dumps(search_results, indent=2), language="json")
-    else:
-        st.info(f"No traffic-affecting events found for {selected_city}")
+    events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
+    show_event_table(events)
+    show_events_map(events)
 
 elif not show_saved_events:
     # Display instructions when no action has been taken

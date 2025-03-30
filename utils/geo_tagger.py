@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def geo_tag_events(events):
-    """Add geographic coordinates and influence radius to events"""
+    """Add geographic coordinates as latitude and longitude to events"""
     tagged_events = []
     
     for index, event in enumerate(events):
@@ -14,23 +14,11 @@ def geo_tag_events(events):
             city = event_copy.get("city_name", "")
             country_code = event_copy.get("country_code", "")
             full_location = format_full_location(event_copy["location"], city, country_code)
-            print("--------------------------------")
-            print(f"Full location: {full_location}")
             coordinates = fetch_lat_long(full_location, index, country_code, city)
-            print(f"Coordinates: {coordinates}")
-            print("--------------------------------")
+
             event_copy["latitude"] = coordinates[0]
             event_copy["longitude"] = coordinates[1]
-            
-            # Set influence radius based on traffic impact
-            traffic_impact = event_copy.get("traffic_impact", "").lower()
-            if traffic_impact == "high":
-                event_copy["influence_radius"] = 2.5
-            elif traffic_impact == "medium":
-                event_copy["influence_radius"] = 1.5
-            else:  # low or unknown
-                event_copy["influence_radius"] = 1.0
-        
+
         tagged_events.append(event_copy)
     
     return tagged_events
