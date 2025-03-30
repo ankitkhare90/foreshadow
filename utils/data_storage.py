@@ -62,8 +62,19 @@ def save_city_events(events: List[Dict[str, Any]],
     for event in events:
         event_copy = event.copy()
         event_copy["created_at"] = datetime.now().isoformat()
-        event_copy["country_code"] = country_code
-        event_copy["id"] = f"{event['event_type']}_{event['location']}_{event['date']}"
+        
+        # Make sure the country code is included
+        if "country_code" not in event_copy:
+            event_copy["country_code"] = country_code
+            
+        # Create a unique ID based on available data
+        # Include event_name if available for better uniqueness
+        event_name_part = ""
+        if event.get('event_name'):
+            event_name_part = f"_{event['event_name'].replace(' ', '-')[:20]}"
+            
+        # Generate ID using available fields
+        event_copy["id"] = f"{event['event_type']}_{event['location']}_{event['date']}{event_name_part}"
         
         # Append only if the ID is not in existing_event_ids
         if event_copy["id"] not in existing_event_ids:

@@ -97,4 +97,45 @@ openai
 requests
 python-dotenv
 geopy
-``` 
+```
+
+# Country Cities Generator
+
+This script generates separate JSON files for each country, with each file containing all cities for that country. It uses the `worldcities.csv` dataset as input.
+
+## Requirements
+
+Before running the script, install the required dependencies:
+
+```bash
+uv pip install pandas
+```
+
+## Usage
+
+1. Make sure `worldcities.csv` is in the root directory of the project
+2. Run the script with:
+
+```bash
+python generate_country_city_files.py
+```
+
+## Output
+
+The script creates a directory named `data/prefill_city_data` that contains JSON files for each country, with filenames based on the country's 2-letter code (e.g., `US.json`, `GB.json`, `IN.json`).
+
+Each JSON file contains a direct array of city names:
+
+```json
+[
+  "City1",
+  "City2",
+  ...
+]
+```
+
+## Input Data Format
+
+The script expects the `worldcities.csv` file to have at least these columns:
+- `city`: City name
+- `iso2`: Two-letter country code (ISO 3166-1 alpha-2)
