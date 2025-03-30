@@ -69,12 +69,18 @@ def extract_event(article: Dict[str, Any], city: str) -> Optional[TrafficEvent]:
     Extract events that can affect road traffic from this text. {city_context}
     For each event, provide:
     1. Event type (concert, sport event, road closure, construction, festival, etc.)
-    2. Location (as specific as possible such as street name, pincode, landmark, etc. where this even is happening)
-    3. Date (date at which this event is happening as specific as possible such as 01-01-2025 etc.)
-    4. Time (Time at which this event is happening as specific as possible such as 10:00 AM, 10:00 PM etc.)
-    5. Expected attendance or scale (if mentioned)
+    2. Event name (if mentioned)
+    2. Location (as specific as possible such as venue, street name, pincode, landmark, etc. where this even is happening)
+    3. Date (date at which this event is happening as specific as possible in format DD-MM-YYYY)
+    4. Start Time (Time at which this event is happening as specific as possible such as 10:00 AM, 10:00 PM etc.)
+    5. End Time (Time at which this event is happening as specific as possible such as 10:00 AM, 10:00 PM etc.)
+    6. Traffic Impact (Expected traffic impact of this event) low, medium, high
+    7. Source (Source from where this information is found)
     
+    If start time is not given and event likely to happen in evening, then consider start time as 18:00.
     If no traffic-related events are found in the text, return null.
+    
+    Text: {text}
     """
 
     try:
@@ -82,7 +88,7 @@ def extract_event(article: Dict[str, Any], city: str) -> Optional[TrafficEvent]:
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are an expert at extracting traffic event information from news articles."},
-                {"role": "user", "content": prompt + "\n\nText: " + text}
+                {"role": "user", "content": prompt}
             ],
             response_format=TrafficEvent
         )
@@ -92,9 +98,6 @@ def extract_event(article: Dict[str, Any], city: str) -> Optional[TrafficEvent]:
             return None
             
         event = completion.choices[0].message.parsed
-        print(f"--------------------------------")
-        print(f"Extracted event: {event}")
-        print(f"--------------------------------")
         return event
     except Exception as e:
         print(f"Error extracting event: {e}")
