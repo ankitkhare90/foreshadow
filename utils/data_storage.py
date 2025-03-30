@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -19,6 +20,41 @@ EXTRACTED_CITY_DATA_DIR = os.path.join(DEFAULT_DATA_DIR, "extracted_city_data")
 # Ensure data directories exist
 os.makedirs(DEFAULT_DATA_DIR, exist_ok=True)
 os.makedirs(EXTRACTED_CITY_DATA_DIR, exist_ok=True)
+
+def clean_id_component(text: str) -> str:
+    """
+    Clean a string for use in an ID by:
+    - Converting to lowercase
+    - Replacing spaces with underscores
+    - Removing special characters
+    
+    Args:
+        text (str): Text to clean
+        
+    Returns:
+        str: Cleaned text suitable for use in an ID
+    """
+    cleaned = text.lower().replace(' ', '_')
+    cleaned = re.sub(r'[^\w]', '', cleaned)
+    
+    return cleaned
+
+def get_event_id(event: Dict[str, Any]) -> str:
+    """
+    Generate a unique ID for an event by cleaning and combining its attributes.
+    
+    Args:
+        event (Dict[str, Any]): Event dictionary containing at least event_type, location, and date
+        
+    Returns:
+        str: A unique ID string for the event
+    """
+    event_type = clean_id_component(event['event_type'])
+    location = clean_id_component(event['location'])
+    date = clean_id_component(event['date'])
+    
+    return f"{event_type}_{location}_{date}"
+
 
 def save_city_events(events: List[Dict[str, Any]], 
                      country_code: str, city_name: str) -> str:
@@ -67,14 +103,8 @@ def save_city_events(events: List[Dict[str, Any]],
         if "country_code" not in event_copy:
             event_copy["country_code"] = country_code
             
-        # Create a unique ID based on available data
-        # Include event_name if available for better uniqueness
-        event_name_part = ""
-        if event.get('event_name'):
-            event_name_part = f"_{event['event_name'].replace(' ', '-')[:20]}"
-            
-        # Generate ID using available fields
-        event_copy["id"] = f"{event['event_type']}_{event['location']}_{event['date']}{event_name_part}"
+        # Generate a unique ID for the event
+        event_copy["id"] = get_event_id(event)
         
         # Append only if the ID is not in existing_event_ids
         if event_copy["id"] not in existing_event_ids:

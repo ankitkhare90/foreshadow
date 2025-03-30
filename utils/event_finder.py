@@ -39,37 +39,31 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
 
     # Create the search prompt based on the provided date parameters
     if start_date and end_date:
-        # Format dates for display
         start_str = start_date.strftime('%d-%m-%Y')
         end_str = end_date.strftime('%d-%m-%Y')
         search_prompt = f"Find events in {city} that could affect road traffic between {start_str} and {end_str}."
     else:
-        # Default to days ahead
-        search_prompt = f"Find events in {city} that could affect road traffic in the next {days} days."
+        search_prompt = f"Find events in {city} that could affect road traffic from internet search in the next {days} days."
 
+    prompt = """You are a helpful assistant that finds event information affecting road traffic from internet and returns it in a structured JSON format. 
+    {search_prompt}
+    Example events that could affect road traffic are concerts, sports events, road closures, construction, festivals, public protests, etc.
+    
+    Extract following details for each event: 
+    - Event type (e.g., concert, sport event, road closure, construction, festival, public protest) 
+    - Event name (if mentioned, otherwise null) 
+    - Location (as specific as possible, including venue, street name, locality, landmark, city, etc.) 
+    - Date (in DD-MM-YYYY format, as specific as possible) 
+    - Start time (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
+    - End time (e.g., 10:00 AM or 10:00 PM, as specific as possible) 
+    - Expected traffic impact (low, medium, or high, inferred if not explicitly stated) 
+    - Source (the specific web page or article where the information is found) If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), assume a start time of 18:00. If no traffic-related events are found, return null."""
+    
     # Prepare the conversation messages
     messages = [
         {
-            "role": "system",
-            "content": (
-                "You are a helpful assistant that extracts event information from text and returns it in a structured JSON format. "
-                "When extracting events that could affect road traffic (e.g., concerts, sports events, road closures, construction, festivals, public protests, etc.), "
-                "include the following details for each event: "
-                "- Event type (e.g., concert, sport event, road closure, construction, festival, public protest) "
-                "- Event name (if mentioned, otherwise null) "
-                "- Location (as specific as possible, including venue, street name, locality, landmark, city, etc.) "
-                "- Date (in DD-MM-YYYY format, as specific as possible) "
-                "- Start time (e.g., 10:00 AM or 10:00 PM, as specific as possible) "
-                "- End time (e.g., 10:00 AM or 10:00 PM, as specific as possible) "
-                "- Expected traffic impact (low, medium, or high, inferred if not explicitly stated) "
-                "- Source (the specific web page or article where the information is found) "
-                "If the start time is not specified and the event is likely to occur in the evening (e.g., concerts, festivals), "
-                "assume a start time of 18:00. If no traffic-related events are found, return null."
-            )
-        },
-        {
             "role": "user",
-            "content": search_prompt
+            "content": prompt
         }
     ]
 
@@ -109,7 +103,7 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
                         "required": ["events"],
                         "additionalProperties": False
                     },
-                    "strict": True
+                    "strict": False
                 }
             }
         )
