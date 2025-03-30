@@ -3,7 +3,8 @@ import os
 
 from dotenv import load_dotenv
 from newspaper import Article
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -13,7 +14,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
 
-def is_traffic_relevant(title: str, description: str, city: str) -> bool:
+def is_traffic_relevant(article: Dict[str, Any], city: str) -> bool:
     """
     Check if the article with given title and description
     contains news that could affect road traffic in the specified city.
@@ -24,8 +25,8 @@ def is_traffic_relevant(title: str, description: str, city: str) -> bool:
 
     Given the following article information. Can it effect traffic in {city}:
     
-    Title: {title}
-    Description: {description}
+    Title: {article.get("title", "")}
+    Description: {article.get("description", "")}
     
     Classify this article as either "Yes" (if it can affect traffic) or "No" (if it cannot affect traffic) and output your answer in JSON format as follows:
 
@@ -36,14 +37,13 @@ def is_traffic_relevant(title: str, description: str, city: str) -> bool:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.01,
-            max_tokens=2048,
+            response_format={"type": "json_object"}
         )
 
         result = json.loads(response.choices[0].message.content)
-        print(result)
         answer = result.get("affect_traffic", "No").lower()
+        if answer == "yes":
+            print(f"print from is_traffic_relevant: {article}")
         return answer == "yes"
 
     except Exception as e:
@@ -51,7 +51,15 @@ def is_traffic_relevant(title: str, description: str, city: str) -> bool:
         return False
 
 
-def extract_event(article: Dict[str, Any], city: str) -> List[Dict[str, Any]]:
+class TrafficEvent(BaseModel):
+    event_type: str
+    location: str
+    date: str
+    time: Optional[str] = None
+    scale: Optional[str] = None
+
+
+def extract_event(article: Dict[str, Any], city: str) -> Optional[TrafficEvent]:
     """Extract structured event data from text using LLM"""
 
     city_context = f"Focus on events in or near {city}."
@@ -66,36 +74,31 @@ def extract_event(article: Dict[str, Any], city: str) -> List[Dict[str, Any]]:
     4. Time (Time at which this event is happening as specific as possible such as 10:00 AM, 10:00 PM etc.)
     5. Expected attendance or scale (if mentioned)
     
-    Return JSON format only, with no explanation:
-    {{
-        "event_type": "...",
-        "location": "...",
-        "date": "...",
-        "time": "...",
-        "scale": "..."
-    }}
-    
-    If no traffic-related events are found, return an empty array.
-    
-    Text: {text}
+    If no traffic-related events are found in the text, return null.
     """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-            max_tokens=2048,
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert at extracting traffic event information from news articles."},
+                {"role": "user", "content": prompt + "\n\nText: " + text}
+            ],
+            response_format=TrafficEvent
         )
-
-        return json.loads(response.choices[0].message.content)
-    except json.JSONDecodeError:
-        print("Error parsing JSON response from LLM")
-        return []
+        
+        if completion.choices[0].message.parsed is None:
+            print("No traffic events found in the article")
+            return None
+            
+        event = completion.choices[0].message.parsed
+        print(f"--------------------------------")
+        print(f"Extracted event: {event}")
+        print(f"--------------------------------")
+        return event
     except Exception as e:
-        print(f"Error calling OpenAI API: {e}")
-        return []
+        print(f"Error extracting event: {e}")
+        return None
 
 
 def fetch_full_content(url):
@@ -140,7 +143,7 @@ def extract_event_from_article(article: Dict[str, Any], city: str) -> Dict[str, 
         return {}
 
     # Check if article is traffic-relevant
-    if not is_traffic_relevant(title, description, city):
+    if not is_traffic_relevant(article, city):
         return {}
 
     # Fetch full content of the selected articles
@@ -156,7 +159,9 @@ def extract_event_from_article(article: Dict[str, Any], city: str) -> Dict[str, 
     if not event:
         return {}
     
-    event["source"] = article
-    event["city_name"] = city
+    event_dict = event.model_dump()
+    event_dict["source"] = article
+    event_dict["city_name"] = city
+    print(f"event: {event_dict}")
 
-    return event
+    return event_dict

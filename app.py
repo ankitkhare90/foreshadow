@@ -39,6 +39,11 @@ with cols[1]:
 
 days = st.slider("Days of news to search:", min_value=1, max_value=30, value=7)
 
+# Add pagination controls
+st.subheader("Search Settings")
+articles_per_page = 100
+max_pages = st.slider(f"Maximum pages to fetch ({articles_per_page} articles per page):", min_value=1, max_value=10, value=3)
+
 # Check if we have saved data for this city
 existing_events = get_city_events(country_code, city)
 if existing_events:
@@ -65,22 +70,6 @@ if existing_events:
         if events_list:
             df = pd.DataFrame(events_list)
             st.dataframe(df, use_container_width=True)
-            
-            # Also display as cards for better visualization
-            st.subheader("Events Detail View")
-            cols = st.columns(3)
-            
-            for i, event in enumerate(existing_events):
-                with cols[i % 3]:
-                    st.markdown(f"""
-                    **Event Type**: {event.get('event_type', 'Unknown')}  
-                    **Location**: {event.get('location', 'Unknown')}  
-                    **Date**: {event.get('date', 'Unknown')}  
-                    **Time**: {event.get('time', 'Unknown')}  
-                    **Scale**: {event.get('scale', 'Unknown') or 'Not specified'}  
-                    **City**: {event.get('city_name', 'Unknown')}
-                    """)
-                    st.divider()
         else:
             st.info(f"No event details found in the saved data for {city}")
 
@@ -88,6 +77,9 @@ search_button = st.button("Search for Traffic Events", type="primary")
 
 if search_button and city:
     # Create a status container to track progress
+    events = []  # Initialize events list outside the try block
+    file_path = None  # Initialize file_path variable
+    
     with st.status(f"Searching for traffic events in {city}...", expanded=True) as status:
         # Fetch news with city in the query
         st.write("Fetching news articles...")
@@ -95,18 +87,32 @@ if search_button and city:
         
         # Try to fetch real news
         try:
-            articles = fetch_news(query=query, days=days)
-            if not articles:
+            all_articles = []
+            total_results = 0
+            
+            # Fetch first page and get total count
+            articles, total_results = fetch_news(query=query, days=days, page=1)
+            all_articles.extend(articles)
+            
+            # Fetch additional pages if needed
+            for page in range(2, min(max_pages + 1, (total_results // articles_per_page) + 2)):
+                st.write(f"Fetching page {page} of articles...")
+                more_articles, _ = fetch_news(query=query, days=days, page=page)
+                if more_articles:
+                    all_articles.extend(more_articles)
+                else:
+                    break
+            
+            if not all_articles:
                 status.update(label="No articles found or API key issue", state="error")
                 st.warning("No articles found or API key issue.")
             else:
-                st.write(f"Found {len(articles)} news articles about {city}")
+                st.write(f"Found {len(all_articles)} news articles about {city} (out of {total_results} total results)")
                 
                 # Process with AI - Sequential approach to avoid multiprocessing issues
                 st.write("Analyzing articles for traffic relevance...")
-                events = []
-                for i, article in enumerate(articles):
-                    progress = ((i + 1) / len(articles)) * 100
+                for i, article in enumerate(all_articles):
+                    progress = ((i + 1) / len(all_articles)) * 100
                     
                     # Update status message
                     if progress % 25 == 0:
@@ -121,6 +127,9 @@ if search_button and city:
                     st.write(f"Detected {len(events)} traffic-affecting events")
                     
                     st.write("Saving event data...")
+                    print("--------------------------------")
+                    print(f"events: {events}")
+                    print("--------------------------------")
                     file_path = save_city_events(events, country_code, city)
                     
                     status.update(
@@ -137,11 +146,11 @@ if search_button and city:
             st.error(f"Error fetching news: {e}")
     
     # Display results
-    if 'events' in locals() and events:
+    if events:
         st.success(f"Detected {len(events)} traffic-affecting events in {city}")
         
-        if 'file_path' in locals() and file_path:
-            st.info(f"Saved event data to {os.path.basename(file_path)}")
+        if file_path:
+            st.toast(f"Saved event data to {os.path.basename(file_path)}", icon="✅")
         
         # Convert to DataFrame for easier display
         events_list = []
@@ -158,24 +167,9 @@ if search_button and city:
         
         df = pd.DataFrame(events_list)
         st.dataframe(df, use_container_width=True)
-        
-        # Also display as cards for better visualization
-        st.subheader("Events Detail View")
-        cols = st.columns(3)
-        
-        for i, event in enumerate(events):
-            with cols[i % 3]:
-                st.markdown(f"""
-                **Event Type**: {event.get('event_type', 'Unknown')}  
-                **Location**: {event.get('location', 'Unknown')}  
-                **Date**: {event.get('date', 'Unknown')}  
-                **Time**: {event.get('time', 'Unknown')}  
-                **Scale**: {event.get('scale', 'Unknown') or 'Not specified'}
-                **City**: {event.get('city_name', 'Unknown')}
-                """)
-                st.divider()
-    elif 'events' in locals():
+    else:
         st.info(f"No traffic-affecting events detected in {city}")
+
 else:
     if not city and search_button:
         st.warning("Please select or enter a city name to search for events")
