@@ -44,14 +44,17 @@ def get_event_id(event: Dict[str, Any]) -> str:
     Generate a unique ID for an event by cleaning and combining its attributes.
     
     Args:
-        event (Dict[str, Any]): Event dictionary containing at least event_type, location, and date
+        event (Dict[str, Any]): Event dictionary containing at least event_type, location, and start_date
         
     Returns:
         str: A unique ID string for the event
     """
-    event_type = clean_id_component(event['event_type'])
-    location = clean_id_component(event['location'])
-    date = clean_id_component(event['date'])
+    event_type = clean_id_component(event.get('event_type', 'unknown'))
+    location = clean_id_component(event.get('location', 'unknown'))
+    
+    # Use start_date if available, otherwise try date
+    date_field = event.get('start_date') or event.get('date', 'unknown')
+    date = clean_id_component(date_field)
     
     return f"{event_type}_{location}_{date}"
 
@@ -119,15 +122,15 @@ def save_city_events(events: List[Dict[str, Any]],
     
     return file_path
 
-def get_city_events(country_code: str, city_name: str, start_date=None, end_date=None) -> List[Dict[str, Any]]:
+def get_city_events(country_code: str, city_name: str, start_date: datetime.date, end_date: datetime.date) -> List[Dict[str, Any]]:
     """
     Get saved events for a specific city from the extracted_city_data directory.
     
     Args:
         country_code (str): Three-letter country code
         city_name (str): Name of the city
-        start_date (datetime or str, optional): Filter events on or after this date
-        end_date (datetime or str, optional): Filter events on or before this date
+        start_date (datetime or str, optional): Filter events on or after this date (DD-MM-YYYY format)
+        end_date (datetime or str, optional): Filter events on or before this date (DD-MM-YYYY format)
         
     Returns:
         list: List of event dictionaries, or empty list if file doesn't exist
@@ -135,53 +138,33 @@ def get_city_events(country_code: str, city_name: str, start_date=None, end_date
     clean_city_name = city_name.replace(" ", "_").lower()
     filename = f"{country_code.lower()}_{clean_city_name}.json"
     file_path = os.path.join(EXTRACTED_CITY_DATA_DIR, filename)
-    
+    print(f"country_code: {country_code}, city_name: {city_name}, start_date: {start_date}, end_date: {end_date}")
     if os.path.exists(file_path):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 events = json.load(f)
-                
-                # If date filtering is requested
-                if start_date or end_date:
-                    filtered_events = []
+                filtered_events = []
+
+                for event in events:
+                    # Get event start and end dates
+                    event_start_date = event.get('start_date')
+                    event_end_date = event.get('end_date')
                     
-                    # Convert string dates to datetime objects if needed
-                    if start_date and isinstance(start_date, str):
-                        start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-                    if end_date and isinstance(end_date, str):
-                        end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-                    
-                    for event in events:
-                        event_date = event.get('date')
-                        if not event_date:
-                            continue
+                    if not event_start_date:
+                        continue
+
+                    event_start_date_obj = datetime.strptime(event_start_date, "%d-%m-%Y").date()
+                    event_end_date_obj = datetime.strptime(event_end_date, "%d-%m-%Y").date()
+
+                    if event_start_date_obj > end_date:
+                        continue
+                    if event_end_date_obj < start_date:
+                        continue
                             
-                        # Try to parse the event date
-                        try:
-                            # Handle different date formats
-                            try:
-                                event_date_obj = datetime.strptime(event_date, "%Y-%m-%d").date()
-                            except ValueError:
-                                try:
-                                    event_date_obj = datetime.strptime(event_date, "%d-%m-%Y").date()
-                                except ValueError:
-                                    event_date_obj = datetime.strptime(event_date, "%d/%m/%Y").date()
-                                    
-                            # Check date range
-                            if start_date and event_date_obj < start_date:
-                                continue
-                            if end_date and event_date_obj > end_date:
-                                continue
-                                
-                            # Event is within range, include it
-                            filtered_events.append(event)
-                        except ValueError:
-                            # If we can't parse the date, include the event to be safe
-                            filtered_events.append(event)
-                    
-                    return filtered_events
-                
-                return events
+                    filtered_events.append(event)
+
+                return filtered_events
+
         except Exception as e:
             print(f"Error reading city data: {e}")
             return []

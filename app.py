@@ -62,7 +62,8 @@ def create_event_map(events, city_name):
         event_name = event.get('event_name') or "Unnamed Event"
         event_type = event.get('event_type', 'Unknown')
         location = event.get('location', 'Unknown')
-        date = event.get('date', 'Unknown')
+        start_date = event.get('start_date', 'Unknown')
+        end_date = event.get('end_date', 'Unknown')
         time = event.get('time', '')
         impact = event.get('traffic_impact', 'unknown').lower()
         
@@ -93,7 +94,7 @@ def create_event_map(events, city_name):
             <h5>{event_type.capitalize()}</h5>
             <b>Event Name:</b> {event_name}<br>
             <b>Location:</b> {location}<br>
-            <b>Date:</b> {date}<br>
+            <b>Date:</b> {start_date} - {end_date}<br>
             <b>Time:</b> {time}<br>
             <b>Traffic Impact:</b> {impact.upper()}<br>
         </div>
@@ -113,7 +114,7 @@ def create_event_map(events, city_name):
             <h5>{event_type.capitalize()}</h5>
             <b>Event Name:</b> {event_name}<br>
             <b>Location:</b> {location}<br>
-            <b>Date:</b> {date}<br>
+            <b>Date:</b> {start_date} - {end_date}<br>
             <b>Time:</b> {time}<br>
             <b>Traffic Impact:</b> {impact.upper()}<br>
             <b>Impact Radius:</b> {radius_km} km<br>
@@ -173,8 +174,8 @@ with st.sidebar:
         search_end_date = pd.Timestamp.now().date() + pd.Timedelta(days=search_days_ahead)
     else:
         search_days_ahead = None
-        search_start_date = st.date_input("Start date")
-        search_end_date = st.date_input("End date", value=pd.Timestamp.now().date() + pd.Timedelta(days=7))
+        search_start_date = st.date_input("Start date", format="DD-MM-YYYY")
+        search_end_date = st.date_input("End date", format="DD-MM-YYYY")
 
     # Check for existing events and add view option
     existing_events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
@@ -197,7 +198,8 @@ if show_saved_events and existing_events:
         website_name = get_website_name(source_url)
         
         saved_event_display_item = {
-            "Date": saved_event.get('date', 'Unknown'),
+            "Start Date": saved_event.get('start_date', 'Unknown'),
+            "End Date": saved_event.get('end_date', 'Unknown'),
             "Type": saved_event.get('event_type', 'Unknown'),
             "Name": saved_event.get('event_name', '') or 'N/A',
             "Location": saved_event.get('location', 'Unknown'),
@@ -220,17 +222,19 @@ if show_saved_events and existing_events:
         # Sort dataframe by date (earliest first)
         try:
             # Try converting to datetime for proper sorting
-            saved_events_df['Date'] = pd.to_datetime(saved_events_df['Date'], errors='coerce')
-            saved_events_df = saved_events_df.sort_values('Date')
+            saved_events_df['Start Date'] = pd.to_datetime(saved_events_df['Start Date'], errors='coerce')
+            saved_events_df['End Date'] = pd.to_datetime(saved_events_df['End Date'], errors='coerce')
+            saved_events_df = saved_events_df.sort_values('Start Date')
             # Format dates back to string for display
-            saved_events_df['Date'] = saved_events_df['Date'].dt.strftime('%d-%m-%Y')
+            saved_events_df['Start Date'] = saved_events_df['Start Date'].dt.strftime('%d-%m-%Y')
+            saved_events_df['End Date'] = saved_events_df['End Date'].dt.strftime('%d-%m-%Y')
         except Exception:
             # If date conversion fails, try basic string sorting
-            saved_events_df = saved_events_df.sort_values('Date')
+            saved_events_df = saved_events_df.sort_values('Start Date')
             
         # Place dataframe inside an expander
         with st.expander("Click to view event data table"):
-            # Configure columns with proper formatting
+            # Configure columns with proper formatting  
             st.dataframe(
                 saved_events_df,
                 column_config={
@@ -288,7 +292,8 @@ if search_button and selected_city:
                         'event_type': search_result.get('event_type', 'Unknown'),
                         'event_name': search_result.get('event_name', ''),
                         'location': search_result.get('location', 'Unknown'),
-                        'date': search_result.get('date', 'Unknown'),
+                        'start_date': search_result.get('start_date', 'Unknown'),
+                        'end_date': search_result.get('end_date', 'Unknown'),
                         'start_time': search_result.get('start_time', ''),
                         'end_time': search_result.get('end_time', ''),
                         'time': f"{search_result.get('start_time', '')} - {search_result.get('end_time', '')}",
@@ -347,13 +352,15 @@ if search_button and selected_city:
         # Sort dataframe by date (earliest first)
         try:
             # Try converting to datetime for proper sorting
-            display_events_df['Date'] = pd.to_datetime(display_events_df['Date'], errors='coerce')
-            display_events_df = display_events_df.sort_values('Date')
+            display_events_df['Start Date'] = pd.to_datetime(display_events_df['Start Date'], errors='coerce')
+            display_events_df['End Date'] = pd.to_datetime(display_events_df['End Date'], errors='coerce')
+            display_events_df = display_events_df.sort_values('Start Date')
             # Format dates back to string for display
-            display_events_df['Date'] = display_events_df['Date'].dt.strftime('%d-%m-%Y')
+            display_events_df['Start Date'] = display_events_df['Start Date'].dt.strftime('%d-%m-%Y')
+            display_events_df['End Date'] = display_events_df['End Date'].dt.strftime('%d-%m-%Y')
         except Exception:
             # If date conversion fails, try basic string sorting
-            display_events_df = display_events_df.sort_values('Date')
+            display_events_df = display_events_df.sort_values('Start Date')
             
         # Place dataframe inside an expander
         with st.expander("Click to view event data table"):

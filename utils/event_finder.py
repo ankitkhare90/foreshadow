@@ -2,9 +2,8 @@ import os
 import json
 import re
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from openai import OpenAI
-from datetime import datetime, date
 from dateutil import parser as date_parser
 
 load_dotenv()
@@ -20,31 +19,43 @@ def validate_event_date(event: Dict[str, Any]) -> Dict[str, Any]:
         event: Event dictionary containing event details
         
     Returns:
-        The event dictionary with validated date fields
+        The event dictionary with validated date fields or empty dict if invalid
     """
     
     try:
+        start_date_obj = None
+        
         if event.get("start_date"):
             try:
-                date_obj = date_parser.parse(event["start_date"], fuzzy=True).date()
-                event["start_date"] = date_obj.strftime("%d-%m-%Y")
+                start_date_obj = date_parser.parse(event["start_date"], fuzzy=True).date()
+                event["start_date"] = start_date_obj.strftime("%d-%m-%Y")
             except (ValueError, TypeError):
                 print(f"Invalid start_date: {event['start_date']}")
+                return {}
         else:
             print(f"No start_date provided for event: {event}")
             return {}
 
         # Handle end_date
+        end_date_obj = None
         if event.get("end_date"):
             try:
-                date_obj = date_parser.parse(event["end_date"], fuzzy=True).date()
-                event["end_date"] = date_obj.strftime("%d-%m-%Y")
+                end_date_obj = date_parser.parse(event["end_date"], fuzzy=True).date()
+                event["end_date"] = end_date_obj.strftime("%d-%m-%Y")
             except:
                 event["end_date"] = event.get("start_date")
+                end_date_obj = start_date_obj
         else:
             event["end_date"] = event["start_date"]
+            end_date_obj = start_date_obj
+        
+        # Check if end date is before start date (invalid)
+        if end_date_obj < start_date_obj:
+            print(f"Invalid date range: end date {end_date_obj} is before start date {start_date_obj}")
+            return {}
             
-    except:
+    except Exception as e:
+        print(f"Error validating event date: {e}")
         return {}
     
     return event
@@ -95,7 +106,8 @@ def validate_event_time(event: Dict[str, Any]) -> Dict[str, Any]:
     
     return event
 
-def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[Dict[str, Any]]:
+def find_traffic_events(city: str, country: str,
+                        start_date, end_date) -> List[Dict[str, Any]]:
     """
     Find events that could affect road traffic in the specified city using OpenAI with web search.
     
@@ -103,8 +115,8 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
         city: Name of the city to search for events
         country: Country code for localization
         days: Number of days ahead to search for events (default: 7)
-        start_date: Optional start date for custom date range
-        end_date: Optional end date for custom date range
+        start_date: start date for custom date range (in DD-MM-YYYY format)
+        end_date: end date for custom date range (in DD-MM-YYYY format)
         
     Returns:
         List of structured event dictionaries
@@ -122,16 +134,8 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
         }
     ]
 
-    # Create the search prompt based on the provided date parameters
-    if start_date and end_date:
-        start_str = start_date.strftime('%d-%m-%Y')
-        end_str = end_date.strftime('%d-%m-%Y')
-        search_prompt = f"Find events in {city} that could affect road traffic between {start_str} and {end_str}."
-    else:
-        search_prompt = f"Find events in {city} that could affect road traffic from internet search in the next {days} days."
-
     prompt = f"""You are a helpful assistant that finds event information affecting road traffic from internet and returns it in a structured JSON format. 
-    {search_prompt}
+    Find events in {city} that could affect road traffic between {start_date} and {end_date}.
     Example events that could affect road traffic are concerts, sports events, road closures, construction, festivals, public protests, etc.
     
     Extract following details for each event: 
@@ -189,7 +193,7 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
                                         "traffic_impact": {"type": "string", "enum": ["low", "medium", "high"]},
                                         "source": {"type": "string"}
                                     },
-                                    "required": ["event_type", "event_name", "location", "date", "start_time", "end_time", "traffic_impact", "source"],
+                                    "required": ["event_type", "location", "start_date", "start_time", "traffic_impact", "source"],
                                     "additionalProperties": False
                                 }
                             }
@@ -217,6 +221,7 @@ def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_
 
         events = [validate_event_time(event) for event in events]
         events = [validate_event_date(event) for event in events]
+        events = [event for event in events if event]
         
         return events
         
