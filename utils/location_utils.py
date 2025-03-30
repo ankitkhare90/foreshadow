@@ -1,6 +1,8 @@
 import json
 import os
+
 from config.constants import CODE_COUNTRY
+
 
 def get_country_options():
     """

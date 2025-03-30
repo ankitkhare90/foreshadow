@@ -1,16 +1,16 @@
-import os
+import re
+
+import folium
 import pandas as pd
 import streamlit as st
-import json
-import re
-import folium
-from streamlit_folium import st_folium
 from folium.plugins import MarkerCluster
+from streamlit_folium import st_folium
 
 from utils.data_storage import get_city_events, save_city_events
-from utils.location_utils import get_cities_for_country, get_country_options
 from utils.event_finder import find_traffic_events
 from utils.geo_tagger import geo_tag_events
+from utils.location_utils import get_cities_for_country, get_country_options
+
 
 # Helper function to extract website name
 def get_website_name(url):

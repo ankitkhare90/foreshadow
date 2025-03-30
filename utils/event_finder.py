@@ -1,10 +1,10 @@
-import os
 import json
-import re
-from dotenv import load_dotenv
-from typing import Dict, Any, List, Optional
-from openai import OpenAI
+import os
+from typing import Any, Dict, List
+
 from dateutil import parser as date_parser
+from dotenv import load_dotenv
+from openai import OpenAI
 
 load_dotenv()
 
