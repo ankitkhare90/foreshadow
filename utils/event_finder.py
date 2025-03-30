@@ -1,15 +1,16 @@
 import os
 import json
 from dotenv import load_dotenv
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from openai import OpenAI
+from datetime import datetime, date
 
 load_dotenv()
 
 # Initialize the OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def find_traffic_events(city: str, country: str, days: int = 7) -> List[Dict[str, Any]]:
+def find_traffic_events(city: str, country: str, days: Optional[int] = 7, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[Dict[str, Any]]:
     """
     Find events that could affect road traffic in the specified city using OpenAI with web search.
     
@@ -17,6 +18,8 @@ def find_traffic_events(city: str, country: str, days: int = 7) -> List[Dict[str
         city: Name of the city to search for events
         country: Country code for localization
         days: Number of days ahead to search for events (default: 7)
+        start_date: Optional start date for custom date range
+        end_date: Optional end date for custom date range
         
     Returns:
         List of structured event dictionaries
@@ -33,6 +36,16 @@ def find_traffic_events(city: str, country: str, days: int = 7) -> List[Dict[str
             }
         }
     ]
+
+    # Create the search prompt based on the provided date parameters
+    if start_date and end_date:
+        # Format dates for display
+        start_str = start_date.strftime('%d-%m-%Y')
+        end_str = end_date.strftime('%d-%m-%Y')
+        search_prompt = f"Find events in {city} that could affect road traffic between {start_str} and {end_str}."
+    else:
+        # Default to days ahead
+        search_prompt = f"Find events in {city} that could affect road traffic in the next {days} days."
 
     # Prepare the conversation messages
     messages = [
@@ -56,7 +69,7 @@ def find_traffic_events(city: str, country: str, days: int = 7) -> List[Dict[str
         },
         {
             "role": "user",
-            "content": f"Find events in {city} that could affect road traffic in the next {days} days."
+            "content": search_prompt
         }
     ]
 
