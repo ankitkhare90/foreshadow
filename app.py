@@ -272,14 +272,9 @@ if search_button and selected_city:
     with st.status(f"Searching for traffic events in {selected_city}...", expanded=True) as status:
         try:
             st.write("Finding traffic events...")
-            
-            # Use either days or date range based on the search option
-            if search_option == "Days ahead":
-                search_results = find_traffic_events(selected_city, selected_country_code, days=search_days_ahead)
-                date_range_text = f"next {search_days_ahead} days"
-            else:
-                search_results = find_traffic_events(selected_city, selected_country_code, days=None, start_date=search_start_date, end_date=search_end_date)
-                date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
+
+            search_results = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date)
+            date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
             
             if search_results:
                 st.write(f"Found {len(search_results)} traffic-affecting events")
