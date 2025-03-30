@@ -1,8 +1,7 @@
 import os
 import json
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
+from typing import Dict, Any, List
 from openai import OpenAI
 
 load_dotenv()
@@ -64,32 +63,38 @@ def find_traffic_events(city: str, country: str, days: int = 7) -> List[Dict[str
     try:
         # Create the response using the new responses.create endpoint
         response = client.responses.create(
-            model="o3-mini",
+            model="gpt-4o",
             input=messages,
             tools=tools,
             tool_choice={"type": "web_search_preview"},
-            reasoning={"effort": "high"},
             text={
                 "format": {
                     "type": "json_schema",
                     "name": "event_list",
                     "schema": {
-                        "type": ["array", "null"],
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "event_type": {"type": "string"},
-                                "event_name": {"type": ["string", "null"]},
-                                "location": {"type": "string"},
-                                "date": {"type": "string"},
-                                "start_time": {"type": "string"},
-                                "end_time": {"type": "string"},
-                                "traffic_impact": {"type": "string", "enum": ["low", "medium", "high"]},
-                                "source": {"type": "string"}
-                            },
-                            "required": ["event_type", "location", "date", "start_time", "end_time", "traffic_impact", "source"],
-                            "additionalProperties": False
-                        }
+                        "type": "object",
+                        "properties": {
+                            "events": {
+                                "type": ["array", "null"],
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "event_type": {"type": "string"},
+                                        "event_name": {"type": ["string", "null"]},
+                                        "location": {"type": "string"},
+                                        "date": {"type": "string"},
+                                        "start_time": {"type": "string"},
+                                        "end_time": {"type": "string"},
+                                        "traffic_impact": {"type": "string", "enum": ["low", "medium", "high"]},
+                                        "source": {"type": "string"}
+                                    },
+                                    "required": ["event_type", "event_name", "location", "date", "start_time", "end_time", "traffic_impact", "source"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["events"],
+                        "additionalProperties": False
                     },
                     "strict": True
                 }
@@ -98,7 +103,8 @@ def find_traffic_events(city: str, country: str, days: int = 7) -> List[Dict[str
         
         # Parse the response - field name changes with new endpoint
         events_json = response.output_text
-        events = json.loads(events_json) if events_json else []
+        events_data = json.loads(events_json) if events_json else {"events": []}
+        events = events_data.get("events", []) if events_data else []
         
         # Return empty list if null is returned
         if events is None:

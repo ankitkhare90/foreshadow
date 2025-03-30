@@ -2,15 +2,26 @@ import os
 import pandas as pd
 import streamlit as st
 import json
+import re
 
 from utils.data_storage import get_city_events, save_city_events
 from utils.location_utils import get_cities_for_country, get_country_options
 from utils.event_finder import find_traffic_events
 
+# Helper function to extract website name
+def get_website_name(url):
+    if isinstance(url, str) and url.startswith('http'):
+        match = re.search(r'https?://(?:www\.)?([^/]+)', url)
+        if match:
+            return match.group(1).split('.')[0]
+    return url
+
 st.set_page_config(
     page_title="Traffic Event Finder",
     page_icon="🚦",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed",
+    menu_items=None
 )
 
 st.title("🚦 Traffic Event Finder")
@@ -53,23 +64,38 @@ if existing_events:
         # Convert to DataFrame for display
         events_list = []
         for event in existing_events:
+            # Extract website name for display
+            source_url = event.get('source', 'Unknown')
+            website_name = get_website_name(source_url)
+            
             event_dict = {
                 "Type": event.get('event_type', 'Unknown'),
                 "Name": event.get('event_name', '') or 'N/A',
                 "Location": event.get('location', 'Unknown'),
                 "Date": event.get('date', 'Unknown'),
                 "Time": event.get('time', 'Unknown'),
-                "Start": event.get('start_time', ''),
-                "End": event.get('end_time', ''),
                 "Impact": event.get('traffic_impact', 'Unknown').upper(),
-                "Source": event.get('source', 'Unknown'),
+                "Source": source_url,
+                "Website": website_name,
                 "City": event.get('city_name', 'Unknown'),
             }
             events_list.append(event_dict)
         
         if events_list:
             df = pd.DataFrame(events_list)
-            st.dataframe(df, use_container_width=True)
+            
+            # Configure Source column as LinkColumn without lambda
+            st.dataframe(
+                df,
+                column_config={
+                    "Source": st.column_config.LinkColumn(
+                        "Source",
+                        help="Link to the source of the event information",
+                        display_text="Website"
+                    )
+                },
+                use_container_width=True
+            )
         else:
             st.info(f"No event details found in the saved data for {city}")
 
@@ -132,6 +158,9 @@ if search_button and city:
         # Display events in a table
         event_data = []
         for event in events:
+            source_url = event.get("source", "Unknown")
+            website_name = get_website_name(source_url)
+            
             event_data.append({
                 "Type": event.get("event_type", "Unknown"),
                 "Name": event.get("event_name", "N/A") or "N/A",
@@ -139,10 +168,28 @@ if search_button and city:
                 "Date": event.get("date", "Unknown"),
                 "Time": f"{event.get('start_time', '')} - {event.get('end_time', '')}",
                 "Impact": event.get("traffic_impact", "Unknown").upper(),
-                "Source": event.get("source", "Unknown")
+                "Source": source_url,
+                "Website": website_name
             })
+
+        df_events = pd.DataFrame(event_data)
         
-        st.table(event_data)
+        # Use dataframe with LinkColumn for Source without lambda
+        st.dataframe(
+            df_events,
+            column_config={
+                "Source": st.column_config.LinkColumn(
+                    "Source",
+                    help="Link to the source of the event information",
+                    display_text="Website"
+                ),
+                "Impact": st.column_config.TextColumn(
+                    "Impact Level",
+                    help="Estimated traffic impact"
+                )
+            },
+            use_container_width=True
+        )
         
         # Also show the raw JSON for reference
         with st.expander("View raw JSON data"):
@@ -155,17 +202,3 @@ else:
         st.warning("Please select or enter a city name to search for events")
     elif not search_button:
         st.info("Select a country and city, then click 'Search for Traffic Events' to begin")
-        
-st.markdown("---")
-st.markdown("""
-### How it works
-This application uses OpenAI's GPT-4o model with web search capability to find real-time traffic events in cities.
-The model searches the web for information about events that could affect traffic, such as:
-- Concerts and festivals
-- Sports events
-- Road closures
-- Construction
-- Marathons and parades
-
-For each event, it extracts structured information including location, date, times, and expected traffic impact.
-""") 
