@@ -1,8 +1,8 @@
-streamlit
-pandas
-openai
-requests
-python-dotenv
-geopy 
-folium
-streamlit-folium 
+folium==0.19.5
+openai==1.69.0
+pandas==2.2.3
+python-dotenv==1.1.0
+python_dateutil==2.9.0.post0
+Requests==2.32.3
+streamlit==1.44.0
+streamlit_folium==0.24.0
