@@ -1,9 +1,13 @@
 import os
-from math import radians, cos, sin, asin, sqrt
+from math import asin, cos, radians, sin, sqrt
+from typing import Optional, Tuple
 
+import googlemaps
 from dotenv import load_dotenv
 
 load_dotenv()
+
+api_key = os.getenv("GEOCODE_API")
 
 def geo_tag_events(events, city, country_code, max_distance_km=100):
     """Add geographic coordinates as latitude and longitude to events
@@ -19,7 +23,7 @@ def geo_tag_events(events, city, country_code, max_distance_km=100):
     """
     tagged_events = []
     
-    city_coordinates = fetch_lat_long(1, f"{city}, {country_code}", city, country_code)
+    city_coordinates = fetch_lat_long(f"{city}, {country_code}")
     
     for index, event in enumerate(events):
         event_copy = event.copy()
@@ -27,8 +31,7 @@ def geo_tag_events(events, city, country_code, max_distance_km=100):
             city = event_copy.get("city_name", "")
             country_code = event_copy.get("country_code", "")
             full_location = format_full_location(event_copy["location"], city, country_code)
-            coordinates = fetch_lat_long(row_idx=index, address=full_location, 
-                                         city=city, country_code=country_code)
+            coordinates = fetch_lat_long(full_location)
 
             event_copy["latitude"] = coordinates[0]
             event_copy["longitude"] = coordinates[1]
@@ -79,77 +82,31 @@ def format_full_location(location, city, country_code):
     return ", ".join(parts)
 
 
-"""
-Geocoding utilities for converting addresses to coordinates.
-"""
-
-import json
-import os
-from typing import Any, Callable, Optional, Tuple
-
-import requests
-from dotenv import load_dotenv
-from requests.auth import HTTPBasicAuth
-
-from config.constants import GEOCODE_API_URL
-
-load_dotenv()
-
-user_id = os.getenv("GEOCODE_USERNAME")
-password = os.getenv("GEOCODE_PWD")
-
 def fetch_lat_long(
-    row_idx: Any,
-    address: str, 
-    city: str,
-    country_code: str,
-    error_callback: Optional[Callable] = None
+    address: str
 ) -> Tuple[Optional[float], Optional[float]]:
     """
-    Fetch latitude and longitude for a given address using the geocoding API.
+    Fetch latitude and longitude for a given address using Google Maps geocoding API.
     
     Args:
         address: The address to geocode
-        row_idx: Unique identifier for the row (used as request ID)
-        user_id: API user ID for authentication (with mara/personnel prefix)
-        password: API password for authentication
-        country_code: Two-letter country code (default: "in")
-        city: City name (optional)
-        error_callback: Optional callback function for error handling
         
     Returns:
         Tuple of (latitude, longitude) or (None, None) if geocoding failed
     """
-    # Use row index as the unique ID
-    unique_id = f"row-{row_idx}"
-    
-    payload = {
-        "id": unique_id,
-        "address": {
-            "formattedAddress": address,
-            "city": city,
-            "countryCode": country_code
-        }
-    }
-    
     try:
-        response = requests.post(
-            GEOCODE_API_URL, 
-            auth=HTTPBasicAuth(user_id, password), 
-            headers={"Content-Type": "application/json"}, 
-            data=json.dumps(payload),
-            timeout=10
-        )
+        # Create a client
+        gmaps = googlemaps.Client(key=api_key)
         
-        if response.status_code == 200:
-            result = response.json()
-            if "latLng" in result and "lat" in result["latLng"] and "lng" in result["latLng"]:
-                return result["latLng"]["lat"], result["latLng"]["lng"]
-        else:
-            if error_callback:
-                error_callback(f"API Error {response.status_code}: {response.text}")
+        # Geocode the address
+        geocode_result = gmaps.geocode(address)
+        
+        # Extract latitude and longitude
+        if geocode_result:
+            location = geocode_result[0]['geometry']['location']
+            return location['lat'], location['lng']
+            
     except Exception as e:
-        if error_callback:
-            error_callback(f"Request failed: {str(e)}")
+        print(f"Geocoding failed: {str(e)}")
     
     return None, None
