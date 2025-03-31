@@ -2,14 +2,12 @@ import json
 import os
 from typing import Any, Dict, List
 
+import streamlit as st
 from dateutil import parser as date_parser
-from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
-
 # Initialize the OpenAI client with API key from environment
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def validate_event_date(event: Dict[str, Any], search_start_date: str, search_end_date: str) -> Dict[str, Any]:
     """

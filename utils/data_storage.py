@@ -51,9 +51,8 @@ def get_event_id(event: Dict[str, Any]) -> str:
     """
     event_type = clean_id_component(event.get('event_type', 'unknown'))
     location = clean_id_component(event.get('location', 'unknown'))
-    
-    # Use start_date if available, otherwise try date
-    date_field = event.get('start_date') or event.get('date', 'unknown')
+
+    date_field = event.get('start_date', "unknown")
     date = clean_id_component(date_field)
     
     return f"{event_type}_{location}_{date}"

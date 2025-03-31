@@ -1,4 +1,5 @@
 import re
+import time
 
 import folium
 import pandas as pd
@@ -203,7 +204,7 @@ st.markdown("""
 <style>
     .block-container {
         padding-top: 1rem;
-        padding-bottom: 0rem;
+        padding-bottom: 4rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -321,9 +322,11 @@ if search_button and selected_city:
                     label=f"Saving events...",
                     state="running"
                 )
-                st.write("Saving events to file...")
+                st.write("Saving events...")
                 saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
-                st.write("Events saved to file...")
+                time.sleep(0.5)
+                st.write("Events saved successfully.")
+                time.sleep(1)
                 status.update(
                     label=f"Found and saved {len(geotagged_events)} traffic events for {selected_city} city.",
                     state="complete",

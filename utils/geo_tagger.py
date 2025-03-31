@@ -1,15 +1,15 @@
 import os
 from math import asin, cos, radians, sin, sqrt
 from typing import Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
 
 import googlemaps
-from dotenv import load_dotenv
+import streamlit as st
 
-load_dotenv()
+gmaps = googlemaps.Client(key=st.secrets["GEOCODE_API"])
 
-api_key = os.getenv("GEOCODE_API")
-
-def geo_tag_events(events, city, country_code, max_distance_km=100):
+def geo_tag_events(events, city, country_code, 
+                   max_distance_km=100, max_workers=4):
     """Add geographic coordinates as latitude and longitude to events
     
     Args:
@@ -17,6 +17,7 @@ def geo_tag_events(events, city, country_code, max_distance_km=100):
         city: City name for coordinates reference
         country_code: Two-letter country code
         max_distance_km: Maximum distance in kilometers from city center (default: 100)
+        max_workers: Maximum number of parallel workers (default: 4)
     
     Returns:
         List of events with geographic coordinates, filtered by distance
@@ -25,7 +26,7 @@ def geo_tag_events(events, city, country_code, max_distance_km=100):
     
     city_coordinates = fetch_lat_long(f"{city}, {country_code}")
     
-    for index, event in enumerate(events):
+    def process_event(event):
         event_copy = event.copy()
         if "location" in event_copy and event_copy["location"]:
             city = event_copy.get("city_name", "")
@@ -38,7 +39,7 @@ def geo_tag_events(events, city, country_code, max_distance_km=100):
             
             # Skip events with invalid coordinates
             if not coordinates[0] or not coordinates[1]:
-                continue
+                return None
                 
             # Skip events that are too far from the city center
             if city_coordinates[0] and city_coordinates[1]:
@@ -50,10 +51,18 @@ def geo_tag_events(events, city, country_code, max_distance_km=100):
                 event_copy["distance_from_city_km"] = distance
                 
                 if distance > max_distance_km:
-                    continue
+                    return None
                     
-            # Only include events with valid location information
-            tagged_events.append(event_copy)
+            # Event passes all filters
+            return event_copy
+        return None
+    
+    # Process events in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(process_event, events))
+    
+    # Filter out None results
+    tagged_events = [event for event in results if event is not None]
     
     return tagged_events
 
@@ -95,9 +104,6 @@ def fetch_lat_long(
         Tuple of (latitude, longitude) or (None, None) if geocoding failed
     """
     try:
-        # Create a client
-        gmaps = googlemaps.Client(key=api_key)
-        
         # Geocode the address
         geocode_result = gmaps.geocode(address)
         
