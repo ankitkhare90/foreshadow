@@ -26,4 +26,4 @@ def get_cities_for_country(country_code):
             return []
     except Exception as e:
         print(f"Error reading city data for {country_code}: {e}")
-        return [] 
+        return []

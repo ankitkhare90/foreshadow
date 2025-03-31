@@ -1,141 +1,68 @@
-# Foreshadow: Traffic Event Detector
+# Foreshadow: Traffic Event Finder
 
-Foreshadow is a city-based traffic event detection system that leverages news articles and AI to identify traffic-affecting events. This project follows a functional programming approach with modular components.
+A Streamlit application that helps users find and visualize upcoming events that may impact traffic in cities around the world.
 
 ## Features
 
-- **City-based filtering**: Search for traffic events in specific cities
-- **Two-phase AI analysis**:
-  1. First filters news articles for traffic relevance
-  2. Then extracts structured event data from relevant articles
-- **Structured event data**:
-  - Event type (concert, sports, construction, etc.)
-  - Location (specific as possible)
-  - Date and time
-  - Scale/attendance (when available)
-- **Geographic tagging**: Adds coordinates and influence radius to events
-- **Data persistence**: Save and retrieve events
-- **Streamlit user interface**: Easy interactive exploration
+- **Event Search**: Find events like concerts, sports, construction, festivals, and protests
+- **Geographic Visualization**: View events on an interactive map with color-coded impact levels
+- **Date Range Filtering**: Search for events by specific date ranges or days ahead
+- **Multiple Cities**: Supports cities worldwide with country-specific presets
+- **Impact Assessment**: Events are categorized by traffic impact (low, medium, high)
+- **Detailed Information**: View complete event details including venue, date, time, and source
 
 ## Installation
 
-1. Clone this repository
-2. Install dependencies:
-   ```
-   uv pip install -r requirements.txt
-   ```
-3. Set up environment variables in a `.env` file:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   NEWSAPI_API_KEY=your_newsapi_key
-   ```
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/foreshadow.git
+cd foreshadow
+```
+
+2. Create a virtual environment and install dependencies:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+3. Set up environment variables:
+Create a `.env` file in the project root with the following variables:
+```
+OPENAI_API_KEY=your_openai_api_key
+GEOCODE_USERNAME=mara/personnel/yourusername
+GEOCODE_PWD=your_geocode_password
+```
 
 ## Usage
 
-### Run the Streamlit app:
-
+1. Start the Streamlit application:
 ```bash
 streamlit run app.py
 ```
 
-### Run the command-line demo:
+2. In the app:
+   - Select a country and city from the sidebar
+   - Choose between searching by days ahead or a custom date range
+   - Click "Find Events" to search for traffic events
+   - View events on the interactive map and in the table
+   - Filter events by type (concerts, construction, etc.)
 
-Basic version (without geolocation):
-```bash
-python example_usage.py
-```
+## Data Flow
 
-Full pipeline version (with geolocation and storage):
-```bash
-python full_pipeline_example.py
-```
+1. User selects location and date parameters
+2. Application searches for events using OpenAI's API with web search capability
+3. Events are geocoded to obtain latitude/longitude coordinates
+4. Results are stored locally for future reference
+5. Events are displayed on an interactive map and in a filterable table
 
-## Components
+## Structure
 
-The project uses a functional approach with these modules:
-
-- **event_detector.py**: Functions for detecting traffic-affecting events
-  - `detect_events_by_city`: Main function to process articles by city
-  - `is_traffic_relevant`: Checks if articles are traffic-relevant
-  - `extract_events_with_llm`: Extracts structured event data
-  
-- **news_fetcher.py**: Functions for retrieving news
-  - `fetch_news`: Gets news from an external API
-  - `generate_mock_data`: Creates test data when API unavailable
-
-- **geo_tagger.py**: Functions for adding geographic coordinates
-  - `geo_tag_events`: Main function to add location coordinates
-  - `disambiguate_location`: Enhances location references
-  - `calculate_influence_radius`: Determines traffic impact radius
-
-- **data_storage.py**: Functions for data persistence
-  - `save_events`: Stores events with timestamps
-  - `get_events`: Retrieves events with optional date filtering
-
-## How It Works
-
-1. **News Fetching**: Gets news related to the specified city
-2. **Traffic Relevance Check**: Uses AI to filter for traffic-related articles
-3. **Event Extraction**: Analyzes relevant articles to extract structured event data
-4. **Geographic Tagging**: Enhances events with coordinates and influence radius
-5. **Storage**: Persists events for future retrieval
-6. **Display**: Shows events in an easily digestible format
-
-## API Keys
-
-- OpenAI API key: Required for AI analysis
-- NewsAPI key: Required for fetching real news articles
-
-If keys are missing, the system falls back to mock data generation for demonstration purposes.
-
-## Requirements
-
-```
-streamlit
-pandas
-openai
-requests
-python-dotenv
-geopy
-```
-
-# Country Cities Generator
-
-This script generates separate JSON files for each country, with each file containing all cities for that country. It uses the `worldcities.csv` dataset as input.
-
-## Requirements
-
-Before running the script, install the required dependencies:
-
-```bash
-uv pip install pandas
-```
-
-## Usage
-
-1. Make sure `worldcities.csv` is in the root directory of the project
-2. Run the script with:
-
-```bash
-python generate_country_city_files.py
-```
-
-## Output
-
-The script creates a directory named `data/prefill_city_data` that contains JSON files for each country, with filenames based on the country's 2-letter code (e.g., `US.json`, `GB.json`, `IN.json`).
-
-Each JSON file contains a direct array of city names:
-
-```json
-[
-  "City1",
-  "City2",
-  ...
-]
-```
-
-## Input Data Format
-
-The script expects the `worldcities.csv` file to have at least these columns:
-- `city`: City name
-- `iso2`: Two-letter country code (ISO 3166-1 alpha-2)
+- **app.py**: Main Streamlit application
+- **utils/**:
+  - **data_storage.py**: Functions for saving and retrieving event data
+  - **event_finder.py**: Functions for finding traffic events using OpenAI
+  - **geo_tagger.py**: Functions for adding geographic coordinates to events
+  - **location_utils.py**: Utilities for working with cities and countries

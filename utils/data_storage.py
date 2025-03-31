@@ -138,7 +138,6 @@ def get_city_events(country_code: str, city_name: str, start_date: datetime.date
     clean_city_name = city_name.replace(" ", "_").lower()
     filename = f"{country_code.lower()}_{clean_city_name}.json"
     file_path = os.path.join(EXTRACTED_CITY_DATA_DIR, filename)
-    print(f"country_code: {country_code}, city_name: {city_name}, start_date: {start_date}, end_date: {end_date}")
     if os.path.exists(file_path):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
