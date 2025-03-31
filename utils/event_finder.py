@@ -6,8 +6,12 @@ import streamlit as st
 from dateutil import parser as date_parser
 from openai import OpenAI
 
-# Initialize the OpenAI client with API key from environment
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Initialize the OpenAI client with API key from session state
+def get_openai_client():
+    if st.session_state.openai_api_key:
+        return OpenAI(api_key=st.session_state.openai_api_key)
+    else:
+        return None
 
 def validate_event_date(event: Dict[str, Any], search_start_date: str, search_end_date: str) -> Dict[str, Any]:
     """
@@ -199,6 +203,18 @@ def find_traffic_events(city: str, country: str,
     
     if hasattr(end_date, 'strftime'):
         end_date = end_date.strftime("%d-%m-%Y")
+        
+    # Get OpenAI client using API key from session state
+    client = get_openai_client()
+    
+    # Check if API key is provided
+    if not client:
+        st.error("Please enter your OpenAI API key in the sidebar to search for events.")
+        return []
+    
+    # Check if API key format is valid (simple check)
+    if not st.session_state.openai_api_key.startswith("sk-"):
+        st.warning("The OpenAI API key format doesn't look valid. It should start with 'sk-'.")
 
     tools = [
         {
@@ -234,6 +250,15 @@ def find_traffic_events(city: str, country: str,
 
     except Exception as e:
         print(f"Error finding traffic events: {e} for event type: {event_type}")
+        error_message = str(e).lower()
+        
+        # Check for authentication/API key errors
+        if "auth" in error_message or "api key" in error_message or "authentication" in error_message or "invalid" in error_message or "unauthorized" in error_message:
+            st.error(f"Authentication error: Your OpenAI API key appears to be invalid. Please check your API key and try again.")
+        elif "quota" in error_message or "billing" in error_message or "exceeded" in error_message:
+            st.error(f"OpenAI API usage limit reached: Your account may be out of credits or has exceeded its quota.")
+        else:
+            st.error(f"Error finding traffic events: {e}")
         return []
 
     events = [validate_event_time(event) for event in events]

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import googlemaps
 import streamlit as st
 
+# Initialize Google Maps client with API key from environment
 gmaps = googlemaps.Client(key=st.secrets["GEOCODE_API"])
 
 def geo_tag_events(events, city, country_code, 
@@ -89,7 +90,6 @@ def format_full_location(location, city, country_code):
     """Format a complete location string using location, city and country code"""
     parts = [p for p in [location, city, country_code] if p]
     return ", ".join(parts)
-
 
 def fetch_lat_long(
     address: str

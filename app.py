@@ -1,5 +1,6 @@
 import re
 import time
+import os
 
 import folium
 import pandas as pd
@@ -12,6 +13,9 @@ from utils.event_finder import find_traffic_events
 from utils.geo_tagger import geo_tag_events
 from utils.location_utils import get_cities_for_country, get_country_options
 
+# Initialize session state for API key
+if "openai_api_key" not in st.session_state:
+    st.session_state.openai_api_key = ""
 
 # Helper function to extract website name
 def get_website_name(url):
@@ -45,7 +49,7 @@ def create_event_map(events):
     impact_colors = {
         'high': 'red',
         'medium': 'orange',
-        'low': 'green',
+        'low': 'blue',
         'unknown': 'blue'
     }
     
@@ -178,12 +182,28 @@ def show_event_table(events):
     else:
         st.info("No events found")
         
-def show_events_map(events):
+def show_events_map(events, key_suffix="default"):
     col1, col2, col3 = st.columns([1, 10, 1])
     with col2:
         map_saved = create_event_map(events)
         if map_saved:
-            st_folium(map_saved, width=800, height=600, returned_objects=[])
+            # Use a unique key for each map instance
+            map_key = f"map_{key_suffix}"
+            st_folium(map_saved, width=800, height=600, returned_objects=[], key=map_key)
+            
+            # Add legend/explanation below map
+            st.markdown("""
+            <div style="padding: 10px; border-radius: 5px; font-size: 0.9em;">
+                <p><strong>Map Legend:</strong></p>
+                <ul style="margin: 0; padding-left: 20px;">
+                    <li><span style="color: red; font-weight: bold;">Red markers</span>: High traffic impact</li>
+                    <li><span style="color: orange; font-weight: bold;">Orange markers</span>: Medium traffic impact</li>
+                    <li><span style="color: blue; font-weight: bold;">Blue markers</span>: Low or unknown traffic impact</li>
+                    <li><span style="color: green; font-weight: bold;">Green circles with numbers</span>: Clusters of multiple markers - zoom in to expand</li>
+                </ul>
+                <p style="margin-top: 5px; font-style: italic; font-size: 0.85em;">Circles around markers indicate estimated impact radius. Click on markers or circles for event details.</p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.info("No geographic coordinates available for saved events.")
 
@@ -215,6 +235,21 @@ st.title("🚦 Traffic Event Finder")
 # Add controls to sidebar
 with st.sidebar:
     st.header("Search Controls")
+    openai_api_key = st.text_input(
+        "Enter your OpenAI API Key:",
+        type="password",
+        value=st.session_state.openai_api_key,
+        help="Your OpenAI API key is required for event search functionality. The key should start with 'sk-' and you can obtain it from your OpenAI account."
+    )
+    
+    # Store API key in session state
+    st.session_state.openai_api_key = openai_api_key
+    
+    # Replace standard divider with custom styled one
+    st.markdown("""
+    <hr style="margin: 0.5rem 0; padding: 0; height: 1px; border: none; background-color: rgba(49, 51, 63, 0.2);">
+    """, unsafe_allow_html=True)
+    
     # Country selection
     country_options = get_country_options()
     # Find index of India in the country options
@@ -265,7 +300,7 @@ with st.sidebar:
 if show_saved_events and events:
     tab1, tab2 = st.tabs(["📈 Map", "🗃 Data"])
     with tab1:
-        show_events_map(events)
+        show_events_map(events, key_suffix="saved_events")
     with tab2:
         show_event_table(events)
 
@@ -274,81 +309,87 @@ if show_saved_events and events:
 # ==============================================================================
 
 if search_button and selected_city:
-    with st.status(f"Searching for traffic events in {selected_city}...", expanded=True) as status:
-        try:
-            st.write("Finding traffic events...")
-            event_types = ["concert/ live shows/ sport event", "road closure/ construction", "public protest/ demonstration/ gathering"]
-            all_events = []
-            for event_type in event_types:
-                events = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date, event_type=event_type)
-                st.write(f"Found {len(events)} traffic-affecting events for {event_type} category.")
-                all_events.extend(events)
-            
-            if all_events:
-                st.write(f"Found {len(all_events)} traffic-affecting events")
+    # Check if OpenAI API key is provided
+    if not st.session_state.openai_api_key:
+        st.error("Please enter your OpenAI API key in the sidebar to search for events.")
+    else:
+        with st.status(f"Searching for traffic events in {selected_city}...", expanded=True) as status:
+            try:
+                st.write("Finding traffic events...")
+                event_types = ["concert/ live shows/ sport event", "road closure/ construction", "public protest/ demonstration/ gathering"]
+                all_events = []
+                for event_type in event_types:
+                    events = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date, event_type=event_type)
+                    st.write(f"Found {len(events)} traffic-affecting events for {event_type} category.")
+                    all_events.extend(events)
                 
-                events_for_storage = []
-                for event in all_events:
-                    storage_ready_event = {
-                        'event_type': event.get('event_type', 'Unknown'),
-                        'event_name': event.get('event_name', ''),
-                        'location': event.get('location', 'Unknown'),
-                        'start_date': event.get('start_date', 'Unknown'),
-                        'end_date': event.get('end_date', 'Unknown'),
-                        'start_time': event.get('start_time', ''),
-                        'end_time': event.get('end_time', ''),
-                        'time': f"{event.get('start_time', '')} - {event.get('end_time', '')}",
-                        'traffic_impact': event.get('traffic_impact', 'Unknown'),
-                        'source': event.get('source', 'Unknown'),
-                        'city_name': selected_city,
-                        'country_code': selected_country_code
-                    }
-                    events_for_storage.append(storage_ready_event)
-                
-                status.update(
-                    label=f"Geo Tagging started for {len(events_for_storage)} events in {selected_city}",
-                    state="running"
-                )
-                st.write("Adding geographic coordinates to events...")
-                old_length = len(events_for_storage)
-                geotagged_events = geo_tag_events(events_for_storage, selected_city, selected_country_code)
-                new_length = len(geotagged_events)
-                if old_length != new_length:
-                    st.write(f"Filtered out {old_length - new_length} events that are too far from the city center")
+                if all_events:
+                    st.write(f"Found {len(all_events)} traffic-affecting events")
+                    
+                    events_for_storage = []
+                    for event in all_events:
+                        storage_ready_event = {
+                            'event_type': event.get('event_type', 'Unknown'),
+                            'event_name': event.get('event_name', ''),
+                            'location': event.get('location', 'Unknown'),
+                            'start_date': event.get('start_date', 'Unknown'),
+                            'end_date': event.get('end_date', 'Unknown'),
+                            'start_time': event.get('start_time', ''),
+                            'end_time': event.get('end_time', ''),
+                            'time': f"{event.get('start_time', '')} - {event.get('end_time', '')}",
+                            'traffic_impact': event.get('traffic_impact', 'Unknown'),
+                            'source': event.get('source', 'Unknown'),
+                            'city_name': selected_city,
+                            'country_code': selected_country_code
+                        }
+                        events_for_storage.append(storage_ready_event)
+                    
+                    status.update(
+                        label=f"Geo Tagging started for {len(events_for_storage)} events in {selected_city}",
+                        state="running"
+                    )
+                    st.write("Adding geographic coordinates to events...")
+                    old_length = len(events_for_storage)
+                    geotagged_events = geo_tag_events(events_for_storage, selected_city, selected_country_code)
+                    new_length = len(geotagged_events)
+                    if old_length != new_length:
+                        st.write(f"Filtered out {old_length - new_length} events that are too far from the city center")
+                    else:
+                        st.write(f"Added geographic coordinates to {len(geotagged_events)} events")
+                    
+                    status.update(
+                        label=f"Saving events...",
+                        state="running"
+                    )
+                    st.write("Saving events...")
+                    saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
+                    time.sleep(0.5)
+                    st.write("Events saved successfully.")
+                    time.sleep(1)
+                    status.update(
+                        label=f"Found and saved {len(geotagged_events)} traffic events for {selected_city} city.",
+                        state="complete",
+                        expanded=False
+                    )
+                    
                 else:
-                    st.write(f"Added geographic coordinates to {len(geotagged_events)} events")
-                
-                status.update(
-                    label=f"Saving events...",
-                    state="running"
-                )
-                st.write("Saving events...")
-                saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
-                time.sleep(0.5)
-                st.write("Events saved successfully.")
-                time.sleep(1)
-                status.update(
-                    label=f"Found and saved {len(geotagged_events)} traffic events for {selected_city} city.",
-                    state="complete",
-                    expanded=False
-                )
-                
-            else:
-                date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
-                status.update(
-                    label=f"No new traffic events found in {selected_city} for the {date_range_text}",
-                    state="complete"
-                )
-        except Exception as e:
-            status.update(label=f"Error finding traffic events: {e}", state="error")
-            st.error(f"Error finding traffic events: {e}")
+                    date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
+                    status.update(
+                        label=f"No new traffic events found in {selected_city} for the {date_range_text}",
+                        state="complete"
+                    )
+            except Exception as e:
+                status.update(label=f"Error finding traffic events: {e}", state="error")
+                st.error(f"Error finding traffic events: {e}")
 
-    events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
-    tab1, tab2 = st.tabs(["📈 Map", "🗃 Data"])
-    with tab1:
-        show_events_map(events)
-    with tab2:
-        show_event_table(events)
+        # Display events after search
+        events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
+        if events:
+            tab1, tab2 = st.tabs(["📈 Map", "🗃 Data"])
+            with tab1:
+                show_events_map(events, key_suffix="search_results")
+            with tab2:
+                show_event_table(events)
 
 if not show_saved_events and not search_button:
     # Display instructions when no action has been taken
@@ -365,6 +406,12 @@ if not show_saved_events and not search_button:
         - Save search results for future reference
         - View detailed event information including location, date, and traffic impact
         - Visualize events on an interactive map with impact radius
+        
+        ### API Requirements:
+        - This app requires an OpenAI API key to search for events
+        - You can obtain an API key from [OpenAI's platform](https://platform.openai.com/)
+        - The key should start with 'sk-' and must have access to GPT-4 models
+        - Your account must have sufficient credits for API usage
         
         Use the sidebar controls to get started!
         """)
