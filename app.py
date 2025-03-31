@@ -400,18 +400,19 @@ if not show_saved_events and not search_button:
         st.markdown("""
         This app helps you find events that may affect traffic in your selected city.
         
-        ### Features:
-        - Search for traffic events in cities worldwide
-        - View events for a specific time period
-        - Save search results for future reference
-        - View detailed event information including location, date, and traffic impact
-        - Visualize events on an interactive map with impact radius
-        
-        ### API Requirements:
-        - This app requires an OpenAI API key to search for events
-        - You can obtain an API key from [OpenAI's platform](https://platform.openai.com/)
-        - The key should start with 'sk-' and must have access to GPT-4 models
-        - Your account must have sufficient credits for API usage
+        ### Core Components
+        - Web Interface (Streamlit) for user interaction
+        - Event Discovery using AI-powered web search (OpenAI API)
+        - Geocoding System to convert locations to coordinates (Google Geocoding API)
+        - Data Storage for caching discovered events
+        - Visualization tools to display events on interactive maps
+
+        ### Workflow
+        - User selects location and date range parameters
+        - System searches for traffic-impacting events (concerts, construction, protests, etc.)
+        - Events are geocoded to obtain precise coordinates
+        - Results are stored in JSON files to prevent duplicate searches
+        - Events are displayed on an interactive map with color-coded impact indicators
         
         Use the sidebar controls to get started!
         """)
