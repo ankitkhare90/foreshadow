@@ -29,11 +29,10 @@ pip install -r requirements.txt
 ```
 
 3. Set up environment variables:
-Create a `.env` file in the project root with the following variables:
+Create a `~/.streamlit/secrets.toml` file with the following variables:
 ```
-OPENAI_API_KEY=your_openai_api_key
-GEOCODE_USERNAME=mara/personnel/yourusername
-GEOCODE_PWD=your_geocode_password
+OPENAI_API_KEY = "your_openai_api_key"
+GEOCODE_API = "your_geocode_api_key"
 ```
 
 ## Usage

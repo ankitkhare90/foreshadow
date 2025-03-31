@@ -4,15 +4,6 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
-from openai import OpenAI
-
-api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
-
 # Define default data directory and events file path
 DEFAULT_DATA_DIR = "data"
 EXTRACTED_CITY_DATA_DIR = os.path.join(DEFAULT_DATA_DIR, "extracted_city_data")
