@@ -18,8 +18,8 @@ def validate_event_date(event: Dict[str, Any], search_start_date: str, search_en
     
     Args:
         event: Event dictionary containing event details
-        search_start_date: Start date of the search range (DD-MM-YYYY)
-        search_end_date: End date of the search range (DD-MM-YYYY)
+        search_start_date: Start date of the search range (DD-MM-YYYY or date object)
+        search_end_date: End date of the search range (DD-MM-YYYY or date object)
         
     Returns:
         The event dictionary with validated date fields or empty dict if invalid or outside search range
@@ -57,9 +57,14 @@ def validate_event_date(event: Dict[str, Any], search_start_date: str, search_en
             print(f"Invalid date range: end date {end_date_obj} is before start date {start_date_obj}")
             return {}
         
-        # Parse search date range
-        search_start_date_obj = date_parser.parse(search_start_date, fuzzy=True).date()
-        search_end_date_obj = date_parser.parse(search_end_date, fuzzy=True).date()
+        # Parse search date range - handle both string and date object inputs
+        search_start_date_obj = search_start_date
+        if isinstance(search_start_date, str):
+            search_start_date_obj = date_parser.parse(search_start_date, fuzzy=True).date()
+        
+        search_end_date_obj = search_end_date
+        if isinstance(search_end_date, str):
+            search_end_date_obj = date_parser.parse(search_end_date, fuzzy=True).date()
         
         # Check if event overlaps with search date range
         # Event overlaps if: event_start <= search_end AND event_end >= search_start
@@ -184,12 +189,18 @@ def find_traffic_events(city: str, country: str,
         city: Name of the city to search for events
         country: Country code for localization
         days: Number of days ahead to search for events (default: 7)
-        start_date: start date for custom date range (in DD-MM-YYYY format)
-        end_date: end date for custom date range (in DD-MM-YYYY format)
+        start_date: start date for custom date range (in DD-MM-YYYY format or date object)
+        end_date: end date for custom date range (in DD-MM-YYYY format or date object)
         
     Returns:
         List of structured event dictionaries
     """
+    # Convert dates to strings if they are date objects
+    if hasattr(start_date, 'strftime'):
+        start_date = start_date.strftime("%d-%m-%Y")
+    
+    if hasattr(end_date, 'strftime'):
+        end_date = end_date.strftime("%d-%m-%Y")
 
     tools = [
         {

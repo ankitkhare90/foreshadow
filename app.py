@@ -35,7 +35,7 @@ def create_event_map(events):
     avg_lng = sum(e.get('longitude', 0) for e in events_with_coords) / len(events_with_coords)
     
     # Create map centered on average coordinates
-    m = folium.Map(location=[avg_lat, avg_lng], zoom_start=12, tiles="OpenStreetMap")
+    m = folium.Map(location=[avg_lat, avg_lng], zoom_start=10, tiles="OpenStreetMap")
     
     # Add marker cluster group
     marker_cluster = MarkerCluster().add_to(m)
@@ -325,8 +325,9 @@ if search_button and selected_city:
                 saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
                 st.write("Events saved to file...")
                 status.update(
-                    label=f"Found and saved {len(geotagged_events)} traffic events in {selected_city}",
-                    state="complete"
+                    label=f"Found and saved {len(geotagged_events)} traffic events for {selected_city} city.",
+                    state="complete",
+                    expanded=False
                 )
                 
             else:
