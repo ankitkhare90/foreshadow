@@ -11,15 +11,18 @@ load_dotenv()
 # Initialize the OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def validate_event_date(event: Dict[str, Any]) -> Dict[str, Any]:
+def validate_event_date(event: Dict[str, Any], search_start_date: str, search_end_date: str) -> Dict[str, Any]:
     """
     Validates the start_date and end_date of an event and sets defaults if invalid.
+    Also filters out events that don't overlap with the search date range.
     
     Args:
         event: Event dictionary containing event details
+        search_start_date: Start date of the search range (DD-MM-YYYY)
+        search_end_date: End date of the search range (DD-MM-YYYY)
         
     Returns:
-        The event dictionary with validated date fields or empty dict if invalid
+        The event dictionary with validated date fields or empty dict if invalid or outside search range
     """
     
     try:
@@ -52,6 +55,16 @@ def validate_event_date(event: Dict[str, Any]) -> Dict[str, Any]:
         # Check if end date is before start date (invalid)
         if end_date_obj < start_date_obj:
             print(f"Invalid date range: end date {end_date_obj} is before start date {start_date_obj}")
+            return {}
+        
+        # Parse search date range
+        search_start_date_obj = date_parser.parse(search_start_date, fuzzy=True).date()
+        search_end_date_obj = date_parser.parse(search_end_date, fuzzy=True).date()
+        
+        # Check if event overlaps with search date range
+        # Event overlaps if: event_start <= search_end AND event_end >= search_start
+        if start_date_obj > search_end_date_obj or end_date_obj < search_start_date_obj:
+            print(f"Event date range ({start_date_obj} to {end_date_obj}) doesn't overlap with search range ({search_start_date_obj} to {search_end_date_obj})")
             return {}
             
     except Exception as e:
@@ -215,7 +228,7 @@ def find_traffic_events(city: str, country: str,
         return []
 
     events = [validate_event_time(event) for event in events]
-    events = [validate_event_date(event) for event in events]
+    events = [validate_event_date(event, start_date, end_date) for event in events]
     events = [event for event in events if event]
     
     return events

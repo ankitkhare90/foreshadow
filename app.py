@@ -163,20 +163,17 @@ def show_event_table(events):
     
     if all_events:
         events_df = pd.DataFrame(all_events)
-        # Place dataframe inside an expander
-        with st.expander("Click to view event data table"):
-            # Configure columns with proper formatting  
-            st.dataframe(
-                events_df,
-                column_config={
-                    "Url": st.column_config.LinkColumn(
-                        "Url",
-                        display_text="🔗"
-                    )
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+        st.dataframe(
+            events_df,
+            column_config={
+                "Url": st.column_config.LinkColumn(
+                    "Url",
+                    display_text="🔗"
+                )
+            },
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("No events found")
         
@@ -201,13 +198,22 @@ st.set_page_config(
     menu_items=None
 )
 
+# Apply custom CSS to reduce top padding
+st.markdown("""
+<style>
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Main title in the main area
 st.title("🚦 Traffic Event Finder")
-st.subheader("Find events that may affect traffic in your city")
 
 # Add controls to sidebar
 with st.sidebar:
-    st.title("Search Controls")
+    st.header("Search Controls")
     # Country selection
     country_options = get_country_options()
     # Find index of India in the country options
@@ -256,9 +262,11 @@ with st.sidebar:
 # ==============================================================================
 
 if show_saved_events and events:
-    show_event_table(events)
-    st.subheader(f"Map of Events in {selected_city}")
-    show_events_map(events)
+    tab1, tab2 = st.tabs(["📈 Map", "🗃 Data"])
+    with tab1:
+        show_events_map(events)
+    with tab2:
+        show_event_table(events)
 
 # ==============================================================================
 # Section: Search
@@ -295,14 +303,29 @@ if search_button and selected_city:
                         'country_code': selected_country_code
                     }
                     events_for_storage.append(storage_ready_event)
-                    
+                
+                status.update(
+                    label=f"Geo Tagging started for {len(events_for_storage)} events in {selected_city}",
+                    state="running"
+                )
                 st.write("Adding geographic coordinates to events...")
-                geotagged_events = geo_tag_events(events_for_storage)
+                old_length = len(events_for_storage)
+                geotagged_events = geo_tag_events(events_for_storage, selected_city, selected_country_code)
+                new_length = len(geotagged_events)
+                if old_length != new_length:
+                    st.write(f"Filtered out {old_length - new_length} events that are too far from the city center")
+                else:
+                    st.write(f"Added geographic coordinates to {len(geotagged_events)} events")
+                
+                status.update(
+                    label=f"Saving events...",
+                    state="running"
+                )
                 st.write("Saving events to file...")
                 saved_file_path = save_city_events(geotagged_events, selected_country_code, selected_city)
                 st.write("Events saved to file...")
                 status.update(
-                    label=f"Found {len(all_events)} traffic events in {selected_city}",
+                    label=f"Found and saved {len(geotagged_events)} traffic events in {selected_city}",
                     state="complete"
                 )
                 
@@ -317,8 +340,11 @@ if search_button and selected_city:
             st.error(f"Error finding traffic events: {e}")
 
     events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
-    show_event_table(events)
-    show_events_map(events)
+    tab1, tab2 = st.tabs(["📈 Map", "🗃 Data"])
+    with tab1:
+        show_events_map(events)
+    with tab2:
+        show_event_table(events)
 
 if not show_saved_events and not search_button:
     # Display instructions when no action has been taken
