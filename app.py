@@ -1,6 +1,7 @@
 import re
 import time
 import os
+from datetime import datetime, timedelta
 
 import folium
 import pandas as pd
@@ -12,6 +13,7 @@ from utils.data_storage import get_city_events, save_city_events
 from utils.event_finder import find_traffic_events
 from utils.geo_tagger import geo_tag_events
 from utils.location_utils import get_cities_for_country, get_country_options
+from utils.date_utils import parse_date, format_date
 
 # Initialize session state for API key
 if "openai_api_key" not in st.session_state:
@@ -69,7 +71,14 @@ def create_event_map(events):
         location = event.get('location', 'Unknown')
         start_date = event.get('start_date', 'Unknown')
         end_date = event.get('end_date', 'Unknown')
-        time = event.get('time', '')
+        
+        # Combine start and end time for display
+        start_time = event.get('start_time', '')
+        end_time = event.get('end_time', '')
+        time_display = start_time
+        if end_time and end_time != start_time:
+            time_display = f"{start_time} - {end_time}"
+            
         impact = event.get('traffic_impact', 'unknown').lower()
         
         # Set circle radius based on traffic impact (in meters)
@@ -100,7 +109,7 @@ def create_event_map(events):
             <b>Event Name:</b> {event_name}<br>
             <b>Location:</b> {location}<br>
             <b>Date:</b> {start_date} - {end_date}<br>
-            <b>Time:</b> {time}<br>
+            <b>Time:</b> {time_display}<br>
             <b>Traffic Impact:</b> {impact.upper()}<br>
             <b>Impact Radius:</b> {radius_km} km<br>
         </div>
@@ -120,7 +129,7 @@ def create_event_map(events):
             <b>Event Name:</b> {event_name}<br>
             <b>Location:</b> {location}<br>
             <b>Date:</b> {start_date} - {end_date}<br>
-            <b>Time:</b> {time}<br>
+            <b>Time:</b> {time_display}<br>
             <b>Traffic Impact:</b> {impact.upper()}<br>
             <b>Impact Radius:</b> {radius_km} km<br>
         </div>
@@ -146,13 +155,20 @@ def show_event_table(events):
         source_url = event.get('source', 'Unknown')
         website_name = get_website_name(source_url)
         
+        # Get time information - combine start and end time
+        start_time = event.get('start_time', '')
+        end_time = event.get('end_time', '')
+        time_display = start_time
+        if end_time and end_time != start_time:
+            time_display = f"{start_time} - {end_time}"
+        
         event_display_item = {
             "Start Date": event.get('start_date', 'Unknown'),
             "End Date": event.get('end_date', 'Unknown'),
             "Type": event.get('event_type', 'Unknown'),
             "Name": event.get('event_name', '') or 'N/A',
             "Location": event.get('location', 'Unknown'),
-            "Time": event.get('time', 'Unknown'),
+            "Time": time_display,
             "Impact": event.get('traffic_impact', 'Unknown').upper(),
             "Url": source_url,  # Just use the raw URL
             "Website": website_name
@@ -271,19 +287,41 @@ with st.sidebar:
         selected_city = st.text_input("Enter a city name (no predefined cities available for this country):", placeholder="e.g., San Francisco")
     
     # Add search options - either days ahead or custom date range
-    search_option = st.radio("Search by:", ["Days ahead", "Custom date range"])
-
+    st.sidebar.subheader("Date Range Options")
+    search_option = st.sidebar.radio("Search by:", ["Days ahead", "Custom date range"])
+    
+    today = datetime.now().date()
+    
     if search_option == "Days ahead":
-        search_days_ahead = st.slider("Number of days to search ahead:", min_value=1, max_value=30, value=7)
-        search_start_date = pd.Timestamp.now().date()
-        search_end_date = pd.Timestamp.now().date() + pd.Timedelta(days=search_days_ahead)
+        search_days_ahead = st.sidebar.slider("Number of days to search ahead:", min_value=1, max_value=30, value=7)
+        start_date = today
+        end_date = today + timedelta(days=search_days_ahead)
+        
+        # Show selected range in readable format
+        st.sidebar.info(f"Search period: {format_date(start_date)} to {format_date(end_date)}")
     else:
-        search_days_ahead = None
-        search_start_date = st.date_input("Start date", format="DD-MM-YYYY")
-        search_end_date = st.date_input("End date", format="DD-MM-YYYY")
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            start_date = st.date_input(
+                "From:",
+                value=today,
+                min_value=today,
+                max_value=today + timedelta(days=365),
+                key="start_date_select",
+                help="Select start date for event search"
+            )
+        with col2:
+            end_date = st.date_input(
+                "To:",
+                value=today + timedelta(days=7),
+                min_value=start_date,
+                max_value=today + timedelta(days=365),
+                key="end_date_select",
+                help="Select end date for event search"
+            )
 
     # Check for existing events and add view option
-    events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
+    events = get_city_events(selected_country_code, selected_city, start_date=start_date, end_date=end_date)
     if events:
         st.info(f"Found {len(events)} previously saved events for {selected_city} within the selected date range.")
         show_saved_events = st.button("View Saved Events", type="secondary", use_container_width=True)
@@ -319,7 +357,7 @@ if search_button and selected_city:
                 event_types = ["concert/ live shows/ sport event", "road closure/ construction", "public protest/ demonstration/ gathering"]
                 all_events = []
                 for event_type in event_types:
-                    events = find_traffic_events(selected_city, selected_country_code, start_date=search_start_date, end_date=search_end_date, event_type=event_type)
+                    events = find_traffic_events(selected_city, selected_country_code, start_date=start_date, end_date=end_date, event_type=event_type)
                     st.write(f"Found {len(events)} traffic-affecting events for {event_type} category.")
                     all_events.extend(events)
                 
@@ -373,7 +411,7 @@ if search_button and selected_city:
                     )
                     
                 else:
-                    date_range_text = f"between {search_start_date.strftime('%d-%m-%Y')} and {search_end_date.strftime('%d-%m-%Y')}"
+                    date_range_text = f"between {start_date.strftime('%d-%m-%Y')} and {end_date.strftime('%d-%m-%Y')}"
                     status.update(
                         label=f"No new traffic events found in {selected_city} for the {date_range_text}",
                         state="complete"
@@ -383,7 +421,7 @@ if search_button and selected_city:
                 st.error(f"Error finding traffic events: {e}")
 
         # Display events after search
-        events = get_city_events(selected_country_code, selected_city, start_date=search_start_date, end_date=search_end_date)
+        events = get_city_events(selected_country_code, selected_city, start_date=start_date, end_date=end_date)
         if events:
             tab1, tab2 = st.tabs(["📈 Map", "🗃 Data"])
             with tab1:
