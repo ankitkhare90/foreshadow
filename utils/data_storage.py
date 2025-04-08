@@ -2,7 +2,12 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
+
+from utils.date_utils import (
+    parse_date, format_date, 
+    do_date_ranges_overlap, DATETIME_ISO_FORMAT
+)
 
 # Define default data directory and events file path
 DEFAULT_DATA_DIR = "data"
@@ -112,15 +117,17 @@ def save_city_events(events: List[Dict[str, Any]],
     
     return file_path
 
-def get_city_events(country_code: str, city_name: str, start_date: datetime.date, end_date: datetime.date) -> List[Dict[str, Any]]:
+def get_city_events(country_code: str, city_name: str, 
+                   start_date: Union[str, datetime.date], 
+                   end_date: Union[str, datetime.date]) -> List[Dict[str, Any]]:
     """
     Get saved events for a specific city from the extracted_city_data directory.
     
     Args:
         country_code (str): Three-letter country code
         city_name (str): Name of the city
-        start_date (datetime or str, optional): Filter events on or after this date (DD-MM-YYYY format)
-        end_date (datetime or str, optional): Filter events on or before this date (DD-MM-YYYY format)
+        start_date (datetime.date or str): Filter events on or after this date (DD-MM-YYYY format)
+        end_date (datetime.date or str): Filter events on or before this date (DD-MM-YYYY format)
         
     Returns:
         list: List of event dictionaries, or empty list if file doesn't exist
@@ -128,6 +135,24 @@ def get_city_events(country_code: str, city_name: str, start_date: datetime.date
     clean_city_name = city_name.replace(" ", "_").lower()
     filename = f"{country_code.lower()}_{clean_city_name}.json"
     file_path = os.path.join(EXTRACTED_CITY_DATA_DIR, filename)
+    
+    # Convert string dates to date objects if needed
+    if isinstance(start_date, str):
+        start_date_obj = parse_date(start_date)
+        if not start_date_obj:
+            print(f"Invalid start_date for filtering: {start_date}")
+            return []
+    else:
+        start_date_obj = start_date
+        
+    if isinstance(end_date, str):
+        end_date_obj = parse_date(end_date)
+        if not end_date_obj:
+            print(f"Invalid end_date for filtering: {end_date}")
+            return []
+    else:
+        end_date_obj = end_date
+    
     if os.path.exists(file_path):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -142,15 +167,21 @@ def get_city_events(country_code: str, city_name: str, start_date: datetime.date
                     if not event_start_date:
                         continue
 
-                    event_start_date_obj = datetime.strptime(event_start_date, "%d-%m-%Y").date()
-                    event_end_date_obj = datetime.strptime(event_end_date, "%d-%m-%Y").date()
+                    # Parse dates using our standardized parser
+                    event_start_date_obj = parse_date(event_start_date)
+                    if not event_start_date_obj:
+                        continue
+                        
+                    event_end_date_obj = parse_date(event_end_date)
+                    if not event_end_date_obj:
+                        event_end_date_obj = event_start_date_obj
 
-                    if event_start_date_obj > end_date:
-                        continue
-                    if event_end_date_obj < start_date:
-                        continue
-                            
-                    filtered_events.append(event)
+                    # Check if event dates overlap with the search range
+                    if do_date_ranges_overlap(
+                        event_start_date_obj, event_end_date_obj,
+                        start_date_obj, end_date_obj
+                    ):
+                        filtered_events.append(event)
 
                 return filtered_events
 

@@ -3,8 +3,12 @@ import os
 from typing import Any, Dict, List
 
 import streamlit as st
-from dateutil import parser as date_parser
 from openai import OpenAI
+
+from utils.date_utils import (
+    parse_date, format_date, 
+    do_date_ranges_overlap, validate_event_dates
+)
 
 # Initialize the OpenAI client with API key from session state
 def get_openai_client():
@@ -28,29 +32,22 @@ def validate_event_date(event: Dict[str, Any], search_start_date: str, search_en
     """
     
     try:
-        start_date_obj = None
+        # Process the event dates
+        event = validate_event_dates(event)
         
-        if event.get("start_date"):
-            try:
-                start_date_obj = date_parser.parse(event["start_date"], fuzzy=True).date()
-                event["start_date"] = start_date_obj.strftime("%d-%m-%Y")
-            except (ValueError, TypeError):
-                print(f"Invalid start_date: {event['start_date']}")
-                return {}
-        else:
+        # Get event date objects
+        if not event.get("start_date"):
             print(f"No start_date provided for event: {event}")
             return {}
-
-        # Handle end_date
-        end_date_obj = None
-        if event.get("end_date"):
-            try:
-                end_date_obj = date_parser.parse(event["end_date"], fuzzy=True).date()
-                event["end_date"] = end_date_obj.strftime("%d-%m-%Y")
-            except:
-                event["end_date"] = event.get("start_date")
-                end_date_obj = start_date_obj
-        else:
+            
+        start_date_obj = parse_date(event["start_date"])
+        if not start_date_obj:
+            print(f"Invalid start_date: {event['start_date']}")
+            return {}
+            
+        end_date_obj = parse_date(event["end_date"])
+        if not end_date_obj:
+            # If end_date is invalid but start_date is valid, use start_date as end_date
             event["end_date"] = event["start_date"]
             end_date_obj = start_date_obj
         
@@ -59,18 +56,27 @@ def validate_event_date(event: Dict[str, Any], search_start_date: str, search_en
             print(f"Invalid date range: end date {end_date_obj} is before start date {start_date_obj}")
             return {}
         
-        # Parse search date range - handle both string and date object inputs
+        # Convert search dates to date objects if they are strings
         search_start_date_obj = search_start_date
         if isinstance(search_start_date, str):
-            search_start_date_obj = date_parser.parse(search_start_date, fuzzy=True).date()
+            search_start_date_obj = parse_date(search_start_date)
+            if not search_start_date_obj:
+                return {}
         
         search_end_date_obj = search_end_date
         if isinstance(search_end_date, str):
-            search_end_date_obj = date_parser.parse(search_end_date, fuzzy=True).date()
+            search_end_date_obj = parse_date(search_end_date)
+            if not search_end_date_obj:
+                return {}
+        
+        # Debug log the actual dates being compared 
+        print(f"Comparing event ({start_date_obj} to {end_date_obj}) with search range ({search_start_date_obj} to {search_end_date_obj})")
         
         # Check if event overlaps with search date range
-        # Event overlaps if: event_start <= search_end AND event_end >= search_start
-        if start_date_obj > search_end_date_obj or end_date_obj < search_start_date_obj:
+        if not do_date_ranges_overlap(
+            start_date_obj, end_date_obj,
+            search_start_date_obj, search_end_date_obj
+        ):
             print(f"Event date range ({start_date_obj} to {end_date_obj}) doesn't overlap with search range ({search_start_date_obj} to {search_end_date_obj})")
             return {}
             
@@ -91,40 +97,8 @@ def validate_event_time(event: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         The event dictionary with validated time fields
     """
-    try:
-        # Handle start_time
-        if event.get("start_time"):
-            try:
-                # Use dateutil.parser to automatically detect the time format
-                time_obj = date_parser.parse(event["start_time"], fuzzy=True)
-                # Convert to 12-hour format
-                event["start_time"] = time_obj.strftime("%I:%M %p")
-            except (ValueError, TypeError):
-                print(f"Invalid start_time: {event['start_time']}")
-                event["start_time"] = "12:00 AM"
-        else:
-            # No start_time provided
-            event["start_time"] = "12:00 AM"
-
-        # Handle end_time
-        if event.get("end_time"):
-            try:
-                # Use dateutil.parser to automatically detect the time format
-                time_obj = date_parser.parse(event["end_time"], fuzzy=True)
-                # Convert to 12-hour format
-                event["end_time"] = time_obj.strftime("%I:%M %p")
-            except (ValueError, TypeError):
-                event["end_time"] = "11:59 PM"
-        else:
-            # No end_time provided
-            event["end_time"] = "11:59 PM"
-            
-    except Exception:
-        # Fallback for any unexpected errors
-        event["start_time"] = "12:00 AM"
-        event["end_time"] = "11:59 PM"
-    
-    return event
+    # Use the full event date validation from date_utils instead
+    return validate_event_dates(event)
 
 text_format = {
                     "format": {
@@ -190,19 +164,18 @@ def find_traffic_events(city: str, country: str,
     Args:
         city: Name of the city to search for events
         country: Country code for localization
-        days: Number of days ahead to search for events (default: 7)
         start_date: start date for custom date range (in DD-MM-YYYY format or date object)
         end_date: end date for custom date range (in DD-MM-YYYY format or date object)
         
     Returns:
         List of structured event dictionaries
     """
-    # Convert dates to strings if they are date objects
+    # Convert dates to strings in our standard format
     if hasattr(start_date, 'strftime'):
-        start_date = start_date.strftime("%d-%m-%Y")
+        start_date = format_date(start_date)
     
     if hasattr(end_date, 'strftime'):
-        end_date = end_date.strftime("%d-%m-%Y")
+        end_date = format_date(end_date)
         
     # Get OpenAI client using API key from session state
     client = get_openai_client()
@@ -228,38 +201,65 @@ def find_traffic_events(city: str, country: str,
         }
     ]
 
-    try:
-        response = client.responses.create(
-            model="gpt-4o",
-            input = [
-                {
-                    "role": "user",
-                    "content": get_prompt(city, country, event_type, start_date, end_date)
-                }
-            ],
-            tools=tools,
-            tool_choice={"type": "web_search_preview"},
-            text=text_format
-        )
-
-        # Parse the response - field name changes with new endpoint
-        events_json = response.output_text
-        events_data = json.loads(events_json) if events_json else {"events": []}
-        events = events_data.get("events", []) if events_data else []
-        print(f"Found {len(events)} events for event type: {event_type}")
-
-    except Exception as e:
-        print(f"Error finding traffic events: {e} for event type: {event_type}")
-        error_message = str(e).lower()
+    # Set maximum retry count and initialize current attempt
+    max_retries = 2
+    attempt = 0
+    events = []
+    
+    while attempt < max_retries:
+        attempt += 1
         
-        # Check for authentication/API key errors
-        if "auth" in error_message or "api key" in error_message or "authentication" in error_message or "invalid" in error_message or "unauthorized" in error_message:
-            st.error(f"Authentication error: Your OpenAI API key appears to be invalid. Please check your API key and try again.")
-        elif "quota" in error_message or "billing" in error_message or "exceeded" in error_message:
-            st.error(f"OpenAI API usage limit reached: Your account may be out of credits or has exceeded its quota.")
-        else:
-            st.error(f"Error finding traffic events: {e}")
-        return []
+        try:
+            if attempt > 1:
+                print(f"Retry attempt {attempt}/{max_retries} for event type: {event_type}")
+                st.info(f"Retrying search attempt {attempt}/{max_retries} for {event_type}...")
+                
+            response = client.responses.create(
+                model="gpt-4o",
+                input = [
+                    {
+                        "role": "user",
+                        "content": get_prompt(city, country, event_type, start_date, end_date)
+                    }
+                ],
+                tools=tools,
+                tool_choice={"type": "web_search_preview"},
+                text=text_format
+            )
+
+            # Parse the response - field name changes with new endpoint
+            events_json = response.output_text
+            print(f"--------------------------------    ")
+            print(f"Events JSON: {events_json}")
+            print(f"--------------------------------")
+            try:
+                events_data = json.loads(events_json) if events_json else {"events": []}
+                events = events_data.get("events", []) if events_data else []
+                print(f"Found {len(events)} events for event type: {event_type}")
+                # JSON parsing succeeded, break out of the retry loop
+                break
+            except json.JSONDecodeError as json_err:
+                print(f"Error parsing JSON response for event type: {event_type}. Error: {json_err}")
+                if attempt < max_retries:
+                    print(f"Will retry, {max_retries - attempt} attempts remaining")
+                    continue
+                else:
+                    print(f"Maximum retry attempts reached. Unable to parse JSON response.")
+                    events = []
+                    break
+
+        except Exception as e:
+            print(f"Error finding traffic events: {e} for event type: {event_type}")
+            error_message = str(e).lower()
+            
+            # Check for authentication/API key errors
+            if "auth" in error_message or "api key" in error_message or "authentication" in error_message or "invalid" in error_message or "unauthorized" in error_message:
+                st.error(f"Authentication error: Your OpenAI API key appears to be invalid. Please check your API key and try again.")
+            elif "quota" in error_message or "billing" in error_message or "exceeded" in error_message:
+                st.error(f"OpenAI API usage limit reached: Your account may be out of credits or has exceeded its quota.")
+            else:
+                st.error(f"Error finding traffic events: {e}")
+            return []
 
     events = [validate_event_time(event) for event in events]
     events = [validate_event_date(event, start_date, end_date) for event in events]
